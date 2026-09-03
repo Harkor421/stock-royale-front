@@ -101,6 +101,11 @@ html, body {
 .pill.live .dot { background: var(--up); box-shadow: 0 0 9px var(--up); animation: pulse 1.9s ease-in-out infinite; }
 .pill.live { color: var(--up); border-color: rgba(74, 222, 128, 0.35); }
 .pill.closed .dot { background: var(--down); }
+.pill.sim {
+  color: #0b0d12; background: var(--gold); border-color: var(--gold);
+  font-weight: 800; letter-spacing: 0.1em;
+}
+.pill.sim .dot { background: #0b0d12; animation: pulse 1.4s ease-in-out infinite; }
 .pill.closed { color: var(--down); border-color: rgba(255, 107, 107, 0.3); }
 @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: 0.35 } }
 

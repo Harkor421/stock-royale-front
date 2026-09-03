@@ -127,6 +127,8 @@ export function createState() {
       session: { state: 'closed', label: 'CONNECTING…', live: false, nextChangeAt: 0 },
       serverSkewMs: 0, //    serverNow - clientNow, so the countdown is honest
       connected: false,
+      sim: false, //         the backend is running a SYNTHETIC tape, not the market
+
       history: [], //        past winners, newest first
 
       leader: -1,
