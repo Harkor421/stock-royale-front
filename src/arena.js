@@ -9,12 +9,13 @@
 //    colours. Whoever is closest to it is winning the round.
 //  · The closing ring: a glowing wall that contracts from the rim to the hill
 //    over the five minutes of a round. It is the round clock, made physical.
-//  · Lane walls, a rim parapet, bunkers and rocks for scale and silhouette.
+//  · Bunkers and rocks for scale and silhouette. No lane walls: the eight
+//    armies have to be able to reach each other.
 // ============================================================================
 
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { ARENA, ARMIES, COLORS, sampleHeight, wedgeAngle, polar } from './config.js'
+import { preloadLogos, drawLogo, inkFor, hasLogo } from './logos.js'
 
 const _o = new THREE.Object3D()
 const _c = new THREE.Color()
@@ -50,12 +51,17 @@ export function createArena(scene, assets) {
   const pos = geo.attributes.position
   const N = pos.count
   const vr = new Float32Array(N) //   radius of each vertex
+  const vx = new Float32Array(N) //   cached x/z: the crater loop is hot enough
+  const vz = new Float32Array(N) //   that BufferAttribute.getX() shows up in it
   const vw = new Uint8Array(N) //     which wedge it belongs to
   const colors = new Float32Array(N * 3)
+  const burn = new Float32Array(N) // 0..1 how scorched each vertex is
   for (let i = 0; i < N; i++) {
     const x = pos.getX(i)
     const z = pos.getZ(i)
     pos.setY(i, sampleHeight(x, z))
+    vx[i] = x
+    vz[i] = z
     vr[i] = Math.hypot(x, z)
     const a = Math.atan2(z, x) + Math.PI / 2
     const t = (((a / (Math.PI * 2)) % 1) + 1) % 1
@@ -103,23 +109,86 @@ export function createArena(scene, assets) {
   citadel.add(merlons)
 
   // the leader's colours fly over the objective
-  const poleGeo = new THREE.CylinderGeometry(0.4, 0.5, 26, 6)
+  const poleGeo = new THREE.CylinderGeometry(0.5, 0.62, 38, 6)
   const pole = new THREE.Mesh(poleGeo, new THREE.MeshLambertMaterial({ color: 0x3a3630 }))
-  pole.position.y = ARENA.hillH + 13
+  pole.position.y = ARENA.hillH + 19
   pole.castShadow = true
   citadel.add(pole)
 
-  const bannerGeo = new THREE.PlaneGeometry(13, 8, 14, 8)
+  // The flag: big enough to read the winner's mark from the orbit camera.
+  const BANNER_W = 26
+  const BANNER_H = 16
+  const bannerCanvas = document.createElement('canvas')
+  bannerCanvas.width = 640
+  bannerCanvas.height = 400
+  const bctx = bannerCanvas.getContext('2d')
+  const bannerTex = new THREE.CanvasTexture(bannerCanvas)
+  bannerTex.colorSpace = THREE.SRGBColorSpace
+  bannerTex.anisotropy = 8
+  const bannerGeo = new THREE.PlaneGeometry(BANNER_W, BANNER_H, 18, 10)
   const bannerMat = new THREE.MeshLambertMaterial({
-    color: 0xffffff,
+    map: bannerTex,
     side: THREE.DoubleSide,
     emissive: 0x000000,
   })
   const banner = new THREE.Mesh(bannerGeo, bannerMat)
-  banner.position.set(6.7, ARENA.hillH + 20, 0)
+  banner.position.set(BANNER_W / 2 + 0.4, ARENA.hillH + 29, 0)
   banner.castShadow = true
   citadel.add(banner)
   const bannerBase = bannerGeo.attributes.position.array.slice()
+
+  let bannerSig = ''
+
+  /** Repaint the flag for whoever holds the hill. Only when it changes hands. */
+  function paintBanner(army) {
+    const W = bannerCanvas.width
+    const H = bannerCanvas.height
+    const colorCss = army ? army.colorCss : '#8a8a8a'
+    const hex = army ? army.color : 0x8a8a8a
+    const ink = inkFor(hex)
+
+    bctx.clearRect(0, 0, W, H)
+    bctx.fillStyle = colorCss
+    bctx.fillRect(0, 0, W, H)
+    // a hoist band and a hairline border so it reads as cloth, not a sticker
+    bctx.fillStyle = ink
+    bctx.globalAlpha = 0.16
+    bctx.fillRect(0, 0, 26, H)
+    bctx.globalAlpha = 1
+    bctx.strokeStyle = ink
+    bctx.globalAlpha = 0.35
+    bctx.lineWidth = 6
+    bctx.strokeRect(3, 3, W - 6, H - 6)
+    bctx.globalAlpha = 1
+
+    if (!army) {
+      bctx.fillStyle = ink
+      bctx.font = '700 64px "JetBrains Mono", monospace'
+      bctx.textAlign = 'center'
+      bctx.textBaseline = 'middle'
+      bctx.fillText('—', W / 2 + 13, H / 2)
+      bannerTex.needsUpdate = true
+      return
+    }
+
+    const drewLogo = drawLogo(bctx, army.symbol, ink, W / 2 + 13, H / 2 - 34, W * 0.5, H * 0.46)
+    bctx.fillStyle = ink
+    bctx.textAlign = 'center'
+    bctx.textBaseline = 'middle'
+    if (drewLogo) {
+      bctx.font = '800 74px "JetBrains Mono", monospace'
+      bctx.fillText(army.symbol, W / 2 + 13, H - 78)
+    } else {
+      // Amazon and Microsoft fly a wordmark: their marks aren't in the icon set
+      bctx.font = '800 128px "JetBrains Mono", monospace'
+      bctx.fillText(army.symbol, W / 2 + 13, H / 2 - 12)
+      bctx.font = '600 40px "JetBrains Mono", monospace'
+      bctx.globalAlpha = 0.75
+      bctx.fillText(army.name.toUpperCase(), W / 2 + 13, H / 2 + 78)
+      bctx.globalAlpha = 1
+    }
+    bannerTex.needsUpdate = true
+  }
 
   // a halo on the hill that takes the leader's colour
   const haloGeo = new THREE.RingGeometry(ARENA.hillR + 1.4, ARENA.hillR + 3.2, 64).rotateX(-Math.PI / 2)
@@ -131,40 +200,11 @@ export function createArena(scene, assets) {
   halo.position.y = ARENA.hillH + 0.95
   citadel.add(halo)
 
-  // ---------------------------------------------------- lane walls + rim
-  const wallParts = []
-  const wallStart = ARENA.hillR + ARENA.hillSlope - 2
-  for (let i = 0; i < ARMIES; i++) {
-    const a = wedgeAngle(i) + Math.PI / ARMIES // the boundary between lanes
-    const steps = 26
-    for (let k = 0; k < steps; k++) {
-      const r = wallStart + ((ARENA.rim - wallStart) * k) / (steps - 1)
-      const p = polar(r, a)
-      const h = 1.1 + Math.sin(k * 1.7) * 0.28
-      const box = new THREE.BoxGeometry(1.7, h, 2.6)
-      box.translate(p.x, sampleHeight(p.x, p.z) + h / 2 - 0.2, p.z)
-      box.rotateY(0) // boxes are axis-aligned; the jitter below hides it
-      wallParts.push(box)
-    }
-  }
-  const rimSteps = 200
-  for (let k = 0; k < rimSteps; k++) {
-    const a = (k / rimSteps) * Math.PI * 2
-    const p = polar(ARENA.rim + 2.4, a)
-    const h = 2.2 + Math.sin(k * 0.9) * 0.5
-    const box = new THREE.BoxGeometry(3.4, h, 3.4)
-    box.translate(p.x, sampleHeight(p.x, p.z) + h / 2 - 0.3, p.z)
-    wallParts.push(box)
-  }
-  const wallGeo = mergeGeometries(wallParts, false)
-  for (const p of wallParts) p.dispose()
-  const walls = new THREE.Mesh(
-    wallGeo,
-    new THREE.MeshLambertMaterial({ color: COLORS.wall, flatShading: true })
-  )
-  walls.castShadow = true
-  walls.receiveShadow = true
-  scene.add(walls)
+  // ---------------------------------------------------------- no walls
+  // There used to be lane walls between the wedges and a parapet around the rim.
+  // They made the map legible and made the game boring: eight armies each
+  // fought inside its own corridor and never touched. The ground's colour still
+  // says whose territory is whose, and now the columns can actually collide.
 
   // --------------------------------------------------- bunkers + scenery
   const bunkers = new THREE.InstancedMesh(assets.geos.bunker, assets.material, ARMIES)
@@ -240,16 +280,53 @@ export function createArena(scene, assets) {
   // ------------------------------------------------------------- update
   let clock = 0
   let repaintPhase = 0
+  let rosterLoaded = ''
+  let scorchCursor = 0
+  const BURNT = new THREE.Color(0x241713)
 
   function update(state, dt) {
     clock += dt
     const s = state.scalars
 
+    // -- craters: drain whatever the simulator left in the ring and burn it in.
+    //    The ground remembers where it has been hit, and heals slowly, so a
+    //    contested lane looks fought over instead of freshly mown.
+    const sc = state.scorch
+    const cap = sc.x.length
+    if (sc.head - scorchCursor > cap) scorchCursor = sc.head - cap // we fell behind
+    // Bound the work: a heavy barrage can queue dozens of craters in one frame,
+    // and each one sweeps every ground vertex. The rest wait for the next frame.
+    let budget = 4
+    while (scorchCursor < sc.head && budget-- > 0) {
+      const k = scorchCursor % cap
+      const cx = sc.x[k]
+      const cz = sc.z[k]
+      const cr = sc.r[k]
+      const r2 = cr * cr
+      for (let i = 0; i < N; i++) {
+        const dx = vx[i] - cx
+        const dz = vz[i] - cz
+        const d2 = dx * dx + dz * dz
+        if (d2 > r2) continue
+        const f = 1 - Math.sqrt(d2) / cr
+        burn[i] = Math.min(0.72, burn[i] + f * 0.2)
+      }
+      scorchCursor++
+    }
+    const heal = Math.exp(-dt / 15)
+
+    // brand marks load once the roster is known; a late decode repaints the flag
+    const rosterKey = state.armies.map((a) => a.symbol).join(',')
+    if (rosterKey !== rosterLoaded) {
+      rosterLoaded = rosterKey
+      preloadLogos(state.armies.map((a) => a.symbol))
+    }
+
     // -- ground territory. Half the vertices per frame: the front moves slowly
     //    and 30 Hz of repaint is invisible, but it halves the CPU cost.
     for (let i = 0; i < ARMIES; i++) {
       const army = state.armies[i]
-      armyTint[i].setHex(army.color).lerp(_c.setHex(COLORS.ground), 0.5)
+      armyTint[i].setHex(army.color).lerp(_c.setHex(COLORS.ground), 0.62)
     }
     repaintPhase ^= 1
     for (let i = repaintPhase; i < N; i += 2) {
@@ -265,16 +342,29 @@ export function createArena(scene, assets) {
         else if (d < -3) col = r < ARENA.hillR + 2 ? scorchHi : scorch
         else col = scratch.copy(scorch).lerp(armyTint[vw[i]], (d + 3) / 6) // the churned seam
       }
+      const b = (burn[i] *= heal)
+      if (b > 0.004) {
+        colors[o] = col.r + (BURNT.r - col.r) * b
+        colors[o + 1] = col.g + (BURNT.g - col.g) * b
+        colors[o + 2] = col.b + (BURNT.b - col.b) * b
+        continue
+      }
       colors[o] = col.r
       colors[o + 1] = col.g
       colors[o + 2] = col.b
     }
     geo.attributes.color.needsUpdate = true
 
-    // -- citadel flies the leader's colours
+    // -- citadel flies the leader's colours and brand mark
     const leader = s.leader >= 0 ? state.armies[s.leader] : null
     const lead = leader ? leader.color : 0x8a8a8a
-    bannerMat.color.setHex(lead)
+    // the mark decodes asynchronously, so the signature includes whether it has
+    // arrived — the flag repaints itself the moment the logo is ready
+    const sig = (leader ? leader.symbol : '-') + (leader && hasLogo(leader.symbol) ? '1' : '0')
+    if (sig !== bannerSig) {
+      bannerSig = sig
+      paintBanner(leader)
+    }
     haloMat.color.setHex(lead)
     haloMat.opacity = 0.35 + 0.2 * Math.sin(clock * 2.2)
     // stone tinted toward the leader's colour — the citadel visibly changes hands
@@ -292,7 +382,9 @@ export function createArena(scene, assets) {
     for (let i = 0; i < arr.length; i += 3) {
       const bx = bannerBase[i]
       const by = bannerBase[i + 1]
-      arr[i + 2] = Math.sin(bx * 0.8 + clock * 4.5) * 0.7 * ((bx + 6.5) / 13) + Math.sin(by + clock * 3) * 0.16
+      arr[i + 2] =
+        Math.sin(bx * 0.42 + clock * 3.6) * 1.25 * ((bx + BANNER_W / 2) / BANNER_W) +
+        Math.sin(by * 0.6 + clock * 2.4) * 0.3
     }
     bannerGeo.attributes.position.needsUpdate = true
     bannerGeo.computeVertexNormals()
@@ -315,13 +407,12 @@ export function createArena(scene, assets) {
   return {
     update,
     dispose() {
-      scene.remove(ground, walls, bunkers, rocks, stormWall, stormFoot, citadel)
+      scene.remove(ground, bunkers, rocks, stormWall, stormFoot, citadel)
       geo.dispose(); groundMat.dispose()
-      wallGeo.dispose(); walls.material.dispose()
       bunkers.dispose(); rocks.dispose()
       capGeo.dispose(); capMat.dispose(); merlons.dispose()
       poleGeo.dispose(); pole.material.dispose()
-      bannerGeo.dispose(); bannerMat.dispose()
+      bannerGeo.dispose(); bannerMat.dispose(); bannerTex.dispose()
       haloGeo.dispose(); haloMat.dispose()
       ringGeo.dispose(); ringMat.dispose()
       footGeo.dispose(); footMat.dispose()

@@ -63,12 +63,14 @@ function makeArmy(i, t) {
     streak: 0, //                  consecutive seconds of net buying
     planeCooldown: 0,
     flash: 0, //                   seconds of highlight after a whale
+    troops: 0, //                  live soldiers belonging to this army
+    reinforce: 0, //               fractional carry of the reinforcement drip
   }
 }
 
 /** Reset everything that belongs to a single round. Called on `roundStart`. */
 export function resetRound(state) {
-  for (const key of ['soldiers', 'tanks', 'planes', 'fire', 'dust', 'tracers', 'shock']) {
+  for (const key of ['soldiers', 'tanks', 'planes', 'fire', 'dust', 'tracers', 'shock', 'debris']) {
     const p = state[key]
     p.active.fill(0)
     if ('size' in p) p.size.fill(0)
@@ -88,6 +90,8 @@ export function resetRound(state) {
     a.buyNotional = 0
     a.sellNotional = 0
     a.flash = 0
+    a.troops = 0
+    a.reinforce = 0
     a.spark = []
   }
   const s = state.scalars
@@ -236,6 +240,31 @@ export function createState() {
       active: new Uint8Array(R),
       count: 0,
       fl: makeFreelist(R),
+    },
+
+    // tumbling chunks thrown by a blast — the thing that sells an explosion as
+    // an impact on the ground rather than a puff of light
+    debris: {
+      pos: new Float32Array(CAPS.DEBRIS * 3),
+      vel: new Float32Array(CAPS.DEBRIS * 3),
+      rot: new Float32Array(CAPS.DEBRIS * 3),
+      spin: new Float32Array(CAPS.DEBRIS * 3),
+      size: new Float32Array(CAPS.DEBRIS),
+      life: new Float32Array(CAPS.DEBRIS),
+      maxlife: new Float32Array(CAPS.DEBRIS),
+      active: new Uint8Array(CAPS.DEBRIS),
+      count: 0,
+      fl: makeFreelist(CAPS.DEBRIS),
+    },
+
+    // Craters, as a ring buffer the terrain drains each frame. The simulator
+    // can't reach into the ground mesh (it owns no THREE objects), so it leaves
+    // marks here and arena.js burns them in.
+    scorch: {
+      x: new Float32Array(CAPS.SCORCH),
+      z: new Float32Array(CAPS.SCORCH),
+      r: new Float32Array(CAPS.SCORCH),
+      head: 0,
     },
 
     shock: {

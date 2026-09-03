@@ -16,6 +16,26 @@ import { COLORS } from './config.js'
 
 const _col = new THREE.Color()
 
+/**
+ * Part ids baked per vertex so the walk shader knows what to swing.
+ * 0 = body (never moves) · 1/2 = legs · 3/4 = arms.
+ * The pivots are constants both this file and armies.js agree on.
+ */
+export const PART = Object.freeze({ BODY: 0, LEG_L: 1, LEG_R: 2, ARM_L: 3, ARM_R: 4 })
+/** Unit scale applied to the infantry geometries — pivots below are already
+ *  multiplied by it, so the shader can use them straight. */
+export const UNIT_SCALE = 1.9
+export const RIG = Object.freeze({ hipY: 0.35 * UNIT_SCALE, shoulderY: 0.74 * UNIT_SCALE })
+
+/** Tag every vertex of a sub-geometry with the limb it belongs to. */
+function part(geo, id) {
+  const n = geo.attributes.position.count
+  const arr = new Float32Array(n)
+  arr.fill(id)
+  geo.setAttribute('part', new THREE.BufferAttribute(arr, 1))
+  return geo
+}
+
 function grey(geo, v) {
   return paint(geo, _col.setRGB(v, v, v))
 }
@@ -41,16 +61,34 @@ function merge(parts) {
 
 // --- units -----------------------------------------------------------------
 
-/** Infantry. Faces +Z; the renderer rotates it into the march direction. */
+/** Infantry. Faces +Z; the renderer rotates it into the march direction.
+ *  Limbs carry a `part` id so the walk shader can swing them — this model is
+ *  animated on the GPU, not by CPU matrices, so 2000 of them still cost one
+ *  draw call. */
 function buildSoldier() {
-  const legL = grey(new THREE.BoxGeometry(0.08, 0.35, 0.08).translate(-0.06, 0.175, 0), 0.5)
-  const legR = grey(new THREE.BoxGeometry(0.08, 0.35, 0.08).translate(0.06, 0.175, 0), 0.5)
-  const body = grey(new THREE.BoxGeometry(0.25, 0.42, 0.16).translate(0, 0.56, 0), 1.0)
-  const pack = grey(new THREE.BoxGeometry(0.2, 0.24, 0.1).translate(0, 0.6, -0.12), 0.62)
-  const head = grey(new THREE.BoxGeometry(0.16, 0.16, 0.16).translate(0, 0.85, 0), 0.82)
-  const helmet = grey(new THREE.ConeGeometry(0.14, 0.15, 6).translate(0, 0.99, 0), 0.42)
-  const rifle = grey(new THREE.BoxGeometry(0.04, 0.04, 0.44).translate(0.1, 0.55, 0.22), 0.18)
-  const g = merge([legL, legR, body, pack, head, helmet, rifle])
+  const legL = part(grey(new THREE.BoxGeometry(0.085, 0.36, 0.09).translate(-0.065, 0.18, 0), 0.46), PART.LEG_L)
+  const bootL = part(grey(new THREE.BoxGeometry(0.1, 0.07, 0.15).translate(-0.065, 0.035, 0.02), 0.24), PART.LEG_L)
+  const legR = part(grey(new THREE.BoxGeometry(0.085, 0.36, 0.09).translate(0.065, 0.18, 0), 0.46), PART.LEG_R)
+  const bootR = part(grey(new THREE.BoxGeometry(0.1, 0.07, 0.15).translate(0.065, 0.035, 0.02), 0.24), PART.LEG_R)
+
+  const hips = part(grey(new THREE.BoxGeometry(0.24, 0.12, 0.15).translate(0, 0.4, 0), 0.7), PART.BODY)
+  const torso = part(grey(new THREE.BoxGeometry(0.27, 0.34, 0.17).translate(0, 0.63, 0), 1.0), PART.BODY)
+  const chest = part(grey(new THREE.BoxGeometry(0.3, 0.14, 0.19).translate(0, 0.72, 0), 0.86), PART.BODY)
+  const pack = part(grey(new THREE.BoxGeometry(0.21, 0.26, 0.11).translate(0, 0.64, -0.14), 0.55), PART.BODY)
+  const roll = part(grey(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 6).rotateZ(Math.PI / 2).translate(0, 0.79, -0.14), 0.66), PART.BODY)
+  const neck = part(grey(new THREE.BoxGeometry(0.09, 0.06, 0.09).translate(0, 0.83, 0), 0.6), PART.BODY)
+  const head = part(grey(new THREE.BoxGeometry(0.155, 0.16, 0.16).translate(0, 0.92, 0), 0.82), PART.BODY)
+  const helmet = part(grey(new THREE.SphereGeometry(0.115, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 0.9, 1.05).translate(0, 0.98, 0), 0.38), PART.BODY)
+  const brim = part(grey(new THREE.BoxGeometry(0.2, 0.025, 0.1).translate(0, 0.985, 0.09), 0.3), PART.BODY)
+
+  const armL = part(grey(new THREE.BoxGeometry(0.075, 0.3, 0.085).translate(-0.18, 0.6, 0), 0.9), PART.ARM_L)
+  const armR = part(grey(new THREE.BoxGeometry(0.075, 0.24, 0.085).translate(0.18, 0.63, 0.03), 0.9), PART.ARM_R)
+  // the rifle rides with the right arm so it swings up as the soldier moves
+  const stock = part(grey(new THREE.BoxGeometry(0.05, 0.06, 0.2).translate(0.17, 0.55, 0.06), 0.2), PART.ARM_R)
+  const barrel = part(grey(new THREE.BoxGeometry(0.028, 0.028, 0.34).translate(0.17, 0.56, 0.3), 0.14), PART.ARM_R)
+  const mag = part(grey(new THREE.BoxGeometry(0.035, 0.1, 0.05).translate(0.17, 0.49, 0.12), 0.16), PART.ARM_R)
+
+  const g = merge([legL, bootL, legR, bootR, hips, torso, chest, pack, roll, neck, head, helmet, brim, armL, armR, stock, barrel, mag])
   g.scale(1.9, 1.9, 1.9) // the arena is 190 units across; infantry has to read from the orbit camera
   return g
 }
@@ -61,20 +99,26 @@ function buildSoldier() {
  * before you register the crimson.
  */
 function buildBear() {
-  const legL = grey(new THREE.BoxGeometry(0.09, 0.3, 0.09).translate(-0.07, 0.15, 0), 0.42)
-  const legR = grey(new THREE.BoxGeometry(0.09, 0.3, 0.09).translate(0.07, 0.15, 0), 0.42)
-  const body = grey(new THREE.BoxGeometry(0.3, 0.4, 0.2).translate(0, 0.5, -0.02), 1.0)
-  const hood = grey(new THREE.ConeGeometry(0.2, 0.3, 5).translate(0, 0.86, -0.02), 0.55)
-  const head = grey(new THREE.BoxGeometry(0.15, 0.14, 0.15).translate(0, 0.78, 0.03), 0.3)
-  const blade = grey(new THREE.BoxGeometry(0.05, 0.05, 0.5).translate(0.13, 0.5, 0.22), 0.22)
-  const g = merge([legL, legR, body, hood, head, blade])
+  const legL = part(grey(new THREE.BoxGeometry(0.095, 0.32, 0.1).translate(-0.075, 0.16, 0), 0.38), PART.LEG_L)
+  const legR = part(grey(new THREE.BoxGeometry(0.095, 0.32, 0.1).translate(0.075, 0.16, 0), 0.38), PART.LEG_R)
+  const bootL = part(grey(new THREE.BoxGeometry(0.11, 0.07, 0.16).translate(-0.075, 0.035, 0.02), 0.2), PART.LEG_L)
+  const bootR = part(grey(new THREE.BoxGeometry(0.11, 0.07, 0.16).translate(0.075, 0.035, 0.02), 0.2), PART.LEG_R)
+  const body = part(grey(new THREE.BoxGeometry(0.32, 0.4, 0.22).translate(0, 0.55, -0.02), 1.0), PART.BODY)
+  const shoulders = part(grey(new THREE.BoxGeometry(0.4, 0.11, 0.24).translate(0, 0.72, -0.02), 0.72), PART.BODY)
+  const hood = part(grey(new THREE.ConeGeometry(0.19, 0.3, 6).translate(0, 0.9, -0.03), 0.46), PART.BODY)
+  const head = part(grey(new THREE.BoxGeometry(0.14, 0.13, 0.14).translate(0, 0.83, 0.04), 0.22), PART.BODY)
+  const armL = part(grey(new THREE.BoxGeometry(0.08, 0.28, 0.09).translate(-0.21, 0.58, 0), 0.85), PART.ARM_L)
+  const armR = part(grey(new THREE.BoxGeometry(0.08, 0.26, 0.09).translate(0.21, 0.6, 0.02), 0.85), PART.ARM_R)
+  const haft = part(grey(new THREE.BoxGeometry(0.035, 0.035, 0.44).translate(0.2, 0.52, 0.2), 0.18), PART.ARM_R)
+  const blade = part(grey(new THREE.BoxGeometry(0.02, 0.15, 0.16).translate(0.2, 0.56, 0.44), 0.95), PART.ARM_R)
+  const g = merge([legL, legR, bootL, bootR, body, shoulders, hood, head, armL, armR, haft, blade])
   g.scale(1.9, 1.9, 1.9)
   return g
 }
 
 function buildFlag() {
-  const pole = grey(new THREE.BoxGeometry(0.035, 0.95, 0.035).translate(-0.15, 0.48, 0), 0.32)
-  const cloth = grey(new THREE.BoxGeometry(0.02, 0.26, 0.4).translate(-0.15, 0.8, 0.22), 1.0)
+  const pole = part(grey(new THREE.BoxGeometry(0.035, 0.95, 0.035).translate(-0.15, 0.48, 0), 0.32), PART.BODY)
+  const cloth = part(grey(new THREE.BoxGeometry(0.02, 0.26, 0.4).translate(-0.15, 0.8, 0.22), 1.0), PART.BODY)
   const g = merge([pole, cloth])
   g.scale(1.9, 1.9, 1.9)
   return g
@@ -155,6 +199,11 @@ function buildMerlon() {
   return tint(new THREE.BoxGeometry(1.5, 2.1, 1.1).translate(0, 1.05, 0), COLORS.citadel)
 }
 
+/** A chunk of blasted ground/armour. Instanced, tumbling, lit like everything else. */
+function buildDebris() {
+  return tint(new THREE.TetrahedronGeometry(0.5, 0), COLORS.rockDark)
+}
+
 export function createUnitAssets() {
   const geos = {
     soldier: buildSoldier(),
@@ -167,6 +216,7 @@ export function createUnitAssets() {
     rock: buildRock(),
     bunker: buildBunker(),
     merlon: buildMerlon(),
+    debris: buildDebris(),
   }
   const material = new THREE.MeshLambertMaterial({
     color: 0xffffff,

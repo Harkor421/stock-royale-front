@@ -29,10 +29,17 @@ export const ARENA = Object.freeze({
   hillR: 13, //       flat top of the citadel
   hillSlope: 11, //   the mesa's skirt: flat top ends at hillR, ground at hillR+hillSlope
   hillH: 7.5, //      how high the objective stands
-  frontNear: 20, //   frontline radius of the round's leader (troops on the slope)
+  frontNear: 17, //   frontline radius of the round's leader (troops onto the slope)
   frontFar: 84, //    frontline radius of the round's laggard (backed onto the rim)
-  wedgeHalf: 0.36, // half-width of an army's lane in radians (~20.6°, leaves a gutter)
+  wedgeHalf: 0.36, // half-width of an army's lane in radians, where it still holds
   clashBand: 3.2, //  radial distance from the front where soldiers stop and fight
+  /**
+   * The brawl. Inside this radius the lanes stop existing and every soldier
+   * fights whoever is next to him, whatever colour they are. It is deliberately
+   * wide: several armies' frontlines land inside it at once, so the eight of
+   * them physically overlap and grind against each other for the citadel.
+   */
+  meleeR: 46,
   amp: 1.5, //        terrain noise amplitude
   segTheta: 144, //   ground disc resolution
   segR: 52,
@@ -104,6 +111,8 @@ export const CAPS = Object.freeze({
   DUST: 2600,
   TRACERS: 192,
   SHOCKWAVES: 32,
+  DEBRIS: 520,
+  SCORCH: 96,
   FEED: 26,
   LABELS: 24,
 })
