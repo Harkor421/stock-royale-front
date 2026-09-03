@@ -131,6 +131,101 @@ export function createHud(root) {
   const wBuy = winner.querySelector('.w-buy')
   const wPodium = winner.querySelector('.winner-podium')
 
+  // ------------------------------------------------------------- airdrop
+  // The prize, in the middle of the screen: who received the winning stock,
+  // how much, and a link to each transfer on Robinhood Chain's explorer.
+  const drop = el('div', 'drop')
+  drop.innerHTML = `
+    <div class="drop-card">
+      <div class="drop-hd">
+        <span class="drop-title">Airdrop</span>
+        <span class="drop-flags"></span>
+      </div>
+      <div class="drop-lede"><span class="drop-sym">—</span><span class="drop-to"></span></div>
+      <div class="drop-buy"></div>
+      <div class="cols">
+        <span>#</span><span>Holder</span><span class="r">Held</span><span class="r">Received</span><span></span>
+      </div>
+      <div class="drop-rows"><div class="drop-empty">Waiting for the chain…</div></div>
+      <div class="drop-ft"><span class="drop-total">—</span><span class="drop-chain"></span></div>
+    </div>`
+  document.body.append(drop)
+  const dTitle = drop.querySelector('.drop-title')
+  const dFlags = drop.querySelector('.drop-flags')
+  const dSym = drop.querySelector('.drop-sym')
+  const dTo = drop.querySelector('.drop-to')
+  const dBuy = drop.querySelector('.drop-buy')
+  const dRows = drop.querySelector('.drop-rows')
+  const dTotal = drop.querySelector('.drop-total')
+  const dChain = drop.querySelector('.drop-chain')
+
+  let dropTimer = null
+  let dropRows = 0
+  const shortAddr = (a) => (a && a.length > 14 ? a.slice(0, 8) + '…' + a.slice(-6) : a || '—')
+  const txLink = (url, label) =>
+    url && !url.includes('0xSIM')
+      ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>`
+      : `<span style="color:var(--dimmer)">${label}</span>`
+
+  function airdropStart(e, state) {
+    clearTimeout(dropTimer)
+    hideWinner()
+    dropRows = 0
+    const col = state.bySymbol.get(e.ticker)?.colorCss || 'var(--amber)'
+    dTitle.textContent = `Airdrop · round ${e.round?.label ?? ''} ET`
+    dFlags.innerHTML =
+      (e.demo ? '<span class="drop-tag demo">Demo data</span> ' : '') +
+      (e.dryRun ? '<span class="drop-tag">Dry run — no funds moved</span>' : '')
+    dSym.textContent = e.ticker
+    dSym.style.color = col
+    dTo.textContent = `→ ${e.holders.toLocaleString()} holders`
+    dBuy.innerHTML = '<span>Buying on Robinhood Chain…</span>'
+    dRows.innerHTML = '<div class="drop-empty">Waiting for the chain…</div>'
+    dTotal.textContent = '—'
+    dChain.innerHTML = e.token
+      ? `holders of ${txLink(`${e.explorer}/token/${e.token}`, shortAddr(e.token))}`
+      : ''
+    drop.classList.add('show')
+  }
+
+  function airdropBuy(e) {
+    dBuy.innerHTML =
+      `<span>Bought <b>${e.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${e.ticker}</b> ` +
+      `for <b>${e.eth} ETH</b></span>${txLink(e.txUrl, '↗ swap')}`
+  }
+
+  function airdropPayment(e) {
+    if (!dropRows) dRows.innerHTML = ''
+    dropRows++
+    const row = el('div', 'drop-row')
+    row.innerHTML =
+      `<span class="drop-rank">${e.rank}</span>` +
+      `<span class="drop-addr">${shortAddr(e.to)}</span>` +
+      `<span class="drop-pct">${e.pct.toFixed(2)}%</span>` +
+      `<span class="drop-amt">${e.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>` +
+      `<span>${txLink(e.txUrl, '↗')}</span>`
+    dRows.append(row)
+    // follow the stream unless the viewer has scrolled up to read
+    if (dRows.scrollTop + dRows.clientHeight > dRows.scrollHeight - 60) {
+      dRows.scrollTop = dRows.scrollHeight
+    }
+  }
+
+  function airdropResult(e) {
+    dTotal.innerHTML =
+      `<b>${e.totalSent.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${e.ticker}</b> ` +
+      `sent to <b>${e.count.toLocaleString()}</b> holders`
+    if (!dropRows) dRows.innerHTML = '<div class="drop-empty">Nobody was eligible this round.</div>'
+    clearTimeout(dropTimer)
+    dropTimer = setTimeout(() => drop.classList.remove('show'), 26_000)
+  }
+
+  function airdropError(e) {
+    dBuy.innerHTML = `<span style="color:var(--down)">Airdrop failed: ${e.message}</span>`
+    clearTimeout(dropTimer)
+    dropTimer = setTimeout(() => drop.classList.remove('show'), 12_000)
+  }
+
   const closed = el('div', 'closed')
   closed.innerHTML = `
     <div class="closed-card">
@@ -423,6 +518,11 @@ export function createHud(root) {
     banner,
     showWinner,
     hideWinner,
+    airdropStart,
+    airdropBuy,
+    airdropPayment,
+    airdropResult,
+    airdropError,
     onSoundToggle,
     setSoundIcon,
     dispose() {
@@ -430,7 +530,9 @@ export function createHud(root) {
       root.innerHTML = ''
       winner.remove()
       closed.remove()
+      drop.remove()
       clearTimeout(bannerTimer)
+      clearTimeout(dropTimer)
     },
   }
 }

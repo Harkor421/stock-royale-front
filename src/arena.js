@@ -15,7 +15,8 @@
 
 import * as THREE from 'three'
 import { ARENA, ARMIES, COLORS, sampleHeight, wedgeAngle, polar } from './config.js'
-import { preloadLogos, drawLogo, inkFor, hasLogo } from './logos.js'
+import { preloadLogos, hasLogo } from './logos.js'
+import { createFlagTexture } from './flag.js'
 
 const _o = new THREE.Object3D()
 const _c = new THREE.Color()
@@ -56,6 +57,7 @@ export function createArena(scene, assets) {
   const vw = new Uint8Array(N) //     which wedge it belongs to
   const colors = new Float32Array(N * 3)
   const burn = new Float32Array(N) // 0..1 how scorched each vertex is
+  const tone = new Float32Array(N) // static brightness jitter
   for (let i = 0; i < N; i++) {
     const x = pos.getX(i)
     const z = pos.getZ(i)
@@ -63,6 +65,8 @@ export function createArena(scene, assets) {
     vx[i] = x
     vz[i] = z
     vr[i] = Math.hypot(x, z)
+    // a little per-vertex tone jitter so one flat colour still reads as terrain
+    tone[i] = 0.86 + 0.28 * (Math.sin(x * 0.37) * Math.cos(z * 0.29) * 0.5 + 0.5)
     const a = Math.atan2(z, x) + Math.PI / 2
     const t = (((a / (Math.PI * 2)) % 1) + 1) % 1
     vw[i] = Math.min(ARMIES - 1, Math.floor(t * ARMIES))
@@ -74,12 +78,9 @@ export function createArena(scene, assets) {
   ground.receiveShadow = true
   scene.add(ground)
 
-  // colour scratch pads, resolved once per frame
-  const scorch = new THREE.Color(COLORS.scorched)
-  const scorchHi = new THREE.Color(COLORS.scorchedHi)
-  const neutral = new THREE.Color(COLORS.groundLo)
-  const armyTint = []
-  for (let i = 0; i < ARMIES; i++) armyTint.push(new THREE.Color(0xffffff))
+  // the ground has exactly two tones plus whatever the shelling has done to it
+  const neutral = new THREE.Color(COLORS.ground)
+  const neutralFar = new THREE.Color(COLORS.groundLo)
 
   // ------------------------------------------------------------- citadel
   const citadel = new THREE.Group()
@@ -118,16 +119,10 @@ export function createArena(scene, assets) {
   // The flag: big enough to read the winner's mark from the orbit camera.
   const BANNER_W = 26
   const BANNER_H = 16
-  const bannerCanvas = document.createElement('canvas')
-  bannerCanvas.width = 640
-  bannerCanvas.height = 400
-  const bctx = bannerCanvas.getContext('2d')
-  const bannerTex = new THREE.CanvasTexture(bannerCanvas)
-  bannerTex.colorSpace = THREE.SRGBColorSpace
-  bannerTex.anisotropy = 8
+  const flagTex = createFlagTexture(640, 400)
   const bannerGeo = new THREE.PlaneGeometry(BANNER_W, BANNER_H, 18, 10)
   const bannerMat = new THREE.MeshLambertMaterial({
-    map: bannerTex,
+    map: flagTex.texture,
     side: THREE.DoubleSide,
     emissive: 0x000000,
   })
@@ -137,60 +132,8 @@ export function createArena(scene, assets) {
   citadel.add(banner)
   const bannerBase = bannerGeo.attributes.position.array.slice()
 
-  let bannerSig = ''
-
-  /** Repaint the flag for whoever holds the hill. Only when it changes hands. */
-  function paintBanner(army) {
-    const W = bannerCanvas.width
-    const H = bannerCanvas.height
-    const colorCss = army ? army.colorCss : '#8a8a8a'
-    const hex = army ? army.color : 0x8a8a8a
-    const ink = inkFor(hex)
-
-    bctx.clearRect(0, 0, W, H)
-    bctx.fillStyle = colorCss
-    bctx.fillRect(0, 0, W, H)
-    // a hoist band and a hairline border so it reads as cloth, not a sticker
-    bctx.fillStyle = ink
-    bctx.globalAlpha = 0.16
-    bctx.fillRect(0, 0, 26, H)
-    bctx.globalAlpha = 1
-    bctx.strokeStyle = ink
-    bctx.globalAlpha = 0.35
-    bctx.lineWidth = 6
-    bctx.strokeRect(3, 3, W - 6, H - 6)
-    bctx.globalAlpha = 1
-
-    if (!army) {
-      bctx.fillStyle = ink
-      bctx.font = '700 64px "JetBrains Mono", monospace'
-      bctx.textAlign = 'center'
-      bctx.textBaseline = 'middle'
-      bctx.fillText('—', W / 2 + 13, H / 2)
-      bannerTex.needsUpdate = true
-      return
-    }
-
-    const drewLogo = drawLogo(bctx, army.symbol, ink, W / 2 + 13, H / 2 - 34, W * 0.5, H * 0.46)
-    bctx.fillStyle = ink
-    bctx.textAlign = 'center'
-    bctx.textBaseline = 'middle'
-    if (drewLogo) {
-      bctx.font = '800 74px "JetBrains Mono", monospace'
-      bctx.fillText(army.symbol, W / 2 + 13, H - 78)
-    } else {
-      // Amazon and Microsoft fly a wordmark: their marks aren't in the icon set
-      bctx.font = '800 128px "JetBrains Mono", monospace'
-      bctx.fillText(army.symbol, W / 2 + 13, H / 2 - 12)
-      bctx.font = '600 40px "JetBrains Mono", monospace'
-      bctx.globalAlpha = 0.75
-      bctx.fillText(army.name.toUpperCase(), W / 2 + 13, H / 2 + 78)
-      bctx.globalAlpha = 1
-    }
-    bannerTex.needsUpdate = true
-  }
-
-  // a halo on the hill that takes the leader's colour
+  // a halo on the hill in the holder's colour — visible from any angle, and the
+  // clearest signal on the map that the citadel has changed hands
   const haloGeo = new THREE.RingGeometry(ARENA.hillR + 1.4, ARENA.hillR + 3.2, 64).rotateX(-Math.PI / 2)
   const haloMat = new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: 0.5,
@@ -322,36 +265,28 @@ export function createArena(scene, assets) {
       preloadLogos(state.armies.map((a) => a.symbol))
     }
 
-    // -- ground territory. Half the vertices per frame: the front moves slowly
-    //    and 30 Hz of repaint is invisible, but it halves the CPU cost.
-    for (let i = 0; i < ARMIES; i++) {
-      const army = state.armies[i]
-      armyTint[i].setHex(army.color).lerp(_c.setHex(COLORS.ground), 0.62)
-    }
+    // -- ground. Neutral dirt: no team colours down here. Colour on this map
+    //    means "whose unit is that", and painting the terrain with it made a
+    //    pie chart you happened to be able to walk on. What the ground carries
+    //    instead is history — the craters, which is what a battlefield should
+    //    look like it has.
     repaintPhase ^= 1
     for (let i = repaintPhase; i < N; i += 2) {
-      const r = vr[i]
       const o = i * 3
-      let col
-      if (r > ARENA.rim + 4) {
-        col = neutral
-      } else {
-        const army = state.armies[vw[i]]
-        const d = r - army.front
-        if (d > 3) col = armyTint[vw[i]]
-        else if (d < -3) col = r < ARENA.hillR + 2 ? scorchHi : scorch
-        else col = scratch.copy(scorch).lerp(armyTint[vw[i]], (d + 3) / 6) // the churned seam
-      }
+      const base = vr[i] > ARENA.rim + 6 ? neutralFar : neutral
+      const t = tone[i]
+      scratch.setRGB(base.r * t, base.g * t, base.b * t)
+      const col = scratch
       const b = (burn[i] *= heal)
       if (b > 0.004) {
         colors[o] = col.r + (BURNT.r - col.r) * b
         colors[o + 1] = col.g + (BURNT.g - col.g) * b
         colors[o + 2] = col.b + (BURNT.b - col.b) * b
-        continue
+      } else {
+        colors[o] = col.r
+        colors[o + 1] = col.g
+        colors[o + 2] = col.b
       }
-      colors[o] = col.r
-      colors[o + 1] = col.g
-      colors[o + 2] = col.b
     }
     geo.attributes.color.needsUpdate = true
 
@@ -360,11 +295,7 @@ export function createArena(scene, assets) {
     const lead = leader ? leader.color : 0x8a8a8a
     // the mark decodes asynchronously, so the signature includes whether it has
     // arrived — the flag repaints itself the moment the logo is ready
-    const sig = (leader ? leader.symbol : '-') + (leader && hasLogo(leader.symbol) ? '1' : '0')
-    if (sig !== bannerSig) {
-      bannerSig = sig
-      paintBanner(leader)
-    }
+    flagTex.paint(leader)
     haloMat.color.setHex(lead)
     haloMat.opacity = 0.35 + 0.2 * Math.sin(clock * 2.2)
     // stone tinted toward the leader's colour — the citadel visibly changes hands
@@ -412,7 +343,7 @@ export function createArena(scene, assets) {
       bunkers.dispose(); rocks.dispose()
       capGeo.dispose(); capMat.dispose(); merlons.dispose()
       poleGeo.dispose(); pole.material.dispose()
-      bannerGeo.dispose(); bannerMat.dispose(); bannerTex.dispose()
+      bannerGeo.dispose(); bannerMat.dispose(); flagTex.dispose()
       haloGeo.dispose(); haloMat.dispose()
       ringGeo.dispose(); ringMat.dispose()
       footGeo.dispose(); footMat.dispose()

@@ -22,6 +22,8 @@ import { createPlanes } from './planes.js'
 import { createEffects } from './effects.js'
 import { createLabels } from './labels.js'
 import { createBanners } from './banners.js'
+import { createComic } from './comic.js'
+import { createConvoy } from './convoy.js'
 import { createAtmosphere } from './atmosphere.js'
 import { createJuice } from './juice.js'
 import { createAudio } from './audio.js'
@@ -45,12 +47,14 @@ const planes = createPlanes(view.scene, assets)
 const effects = createEffects(view.scene, state, assets)
 const labels = createLabels(view.scene)
 const banners = createBanners(view.scene)
+const comic = createComic(view.scene)
+const convoy = createConvoy(view.scene, assets)
 const atmosphere = createAtmosphere(view.scene, view.sun, view.hemi, view.fog, view.sky)
 const juice = createJuice(view.camera)
 const audio = createAudio()
 const hud = createHud(document.getElementById('hud'))
 const cameraDirector = createCameraDirector(view.camera, view.controls, state)
-const director = createDirector(state, hud, labels, audio, cameraDirector)
+const director = createDirector(state, hud, labels, audio, cameraDirector, comic)
 
 // Sound is off until the viewer asks for it — browsers block audio before a
 // gesture, and an unmuted broadcast that autoplays is nobody's friend.
@@ -98,7 +102,9 @@ function frame() {
   planes.sync(state)
   effects.sync(state)
   labels.update(rawDt)
+  comic.update(rawDt)
   banners.update(state, rawDt)
+  convoy.update(state, rawDt)
   arena.update(state, rawDt)
   atmosphere.update(rawDt, state)
   cameraDirector.update(rawDt)
@@ -150,7 +156,7 @@ if (import.meta.env.DEV) {
       for (let i = 0; i < frames; i++) {
         step(state, dt)
         armies.sync(state); vehicles.sync(state); planes.sync(state); effects.sync(state)
-        labels.update(dt); banners.update(state, dt); banners.refresh(state)
+        labels.update(dt); comic.update(dt); banners.update(state, dt); banners.refresh(state); convoy.update(state, dt)
         arena.update(state, dt); atmosphere.update(dt, state)
         cameraDirector.update(dt); juice.update(dt, state)
       }
@@ -176,6 +182,8 @@ if (import.meta.hot) {
     planes.dispose()
     effects.dispose()
     labels.dispose()
+    comic.dispose()
+    convoy.dispose()
     banners.dispose()
     assets.dispose()
     view.dispose()

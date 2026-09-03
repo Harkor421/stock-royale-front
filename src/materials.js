@@ -199,6 +199,24 @@ function buildMerlon() {
   return tint(new THREE.BoxGeometry(1.5, 2.1, 1.1).translate(0, 1.05, 0), COLORS.citadel)
 }
 
+/** The banner truck: a flatbed with a mast, one per army, carrying its colours
+ *  and brand mark around behind its own lines. Faces +Z like every other unit. */
+function buildTruck() {
+  const wheelFL = grey(new THREE.CylinderGeometry(0.26, 0.26, 0.18, 8).rotateZ(Math.PI / 2).translate(-0.56, 0.26, 0.78), 0.16)
+  const wheelFR = grey(new THREE.CylinderGeometry(0.26, 0.26, 0.18, 8).rotateZ(Math.PI / 2).translate(0.56, 0.26, 0.78), 0.16)
+  const wheelRL = grey(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8).rotateZ(Math.PI / 2).translate(-0.58, 0.3, -0.72), 0.16)
+  const wheelRR = grey(new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8).rotateZ(Math.PI / 2).translate(0.58, 0.3, -0.72), 0.16)
+  const chassis = grey(new THREE.BoxGeometry(1.05, 0.18, 2.5).translate(0, 0.4, 0), 0.4)
+  const bed = grey(new THREE.BoxGeometry(1.15, 0.3, 1.35).translate(0, 0.62, -0.5), 0.95)
+  const cab = grey(new THREE.BoxGeometry(1.05, 0.62, 0.85).translate(0, 0.8, 0.72), 1.0)
+  const glass = grey(new THREE.BoxGeometry(0.9, 0.3, 0.08).translate(0, 0.92, 1.14), 0.22)
+  const bumper = grey(new THREE.BoxGeometry(1.15, 0.16, 0.14).translate(0, 0.5, 1.2), 0.3)
+  const mast = grey(new THREE.CylinderGeometry(0.07, 0.09, 3.2, 6).translate(0, 2.3, -0.55), 0.3)
+  const g = merge([wheelFL, wheelFR, wheelRL, wheelRR, chassis, bed, cab, glass, bumper, mast])
+  g.scale(2.2, 2.2, 2.2)
+  return g
+}
+
 /** A chunk of blasted ground/armour. Instanced, tumbling, lit like everything else. */
 function buildDebris() {
   return tint(new THREE.TetrahedronGeometry(0.5, 0), COLORS.rockDark)
@@ -217,6 +235,7 @@ export function createUnitAssets() {
     bunker: buildBunker(),
     merlon: buildMerlon(),
     debris: buildDebris(),
+    truck: buildTruck(),
   }
   const material = new THREE.MeshLambertMaterial({
     color: 0xffffff,

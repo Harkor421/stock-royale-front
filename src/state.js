@@ -183,8 +183,10 @@ export function createState() {
       tx: new Float32Array(T),
       tz: new Float32Array(T),
       army: new Uint8Array(T),
+      target: new Uint8Array(T), // the army it is driving at
       side: new Uint8Array(T),
       kind: new Uint8Array(T), // 0 tank / 1 apc
+      hill: new Uint8Array(T), // 1 => it is striking the citadel itself
       timer: new Float32Array(T),
       life: new Float32Array(T),
       st: new Uint8Array(T), // 0 driving / 1 firing / 2 leaving
@@ -202,6 +204,7 @@ export function createState() {
       t: new Float32Array(P),
       speed: new Float32Array(P),
       army: new Uint8Array(P),
+      target: new Uint8Array(P), // whose lines it is strafing
       side: new Uint8Array(P),
       kind: new Uint8Array(P), // 0 jet / 1 bomber
       active: new Uint8Array(P),
