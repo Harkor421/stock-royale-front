@@ -63,6 +63,8 @@ function makeArmy(i, t) {
     streak: 0, //                  consecutive seconds of net buying
     planeCooldown: 0,
     vehicleCooldown: 0, //         so one busy ticker can't drain the armour pool
+    flowVeh: 0, //                 $ traded since this army last got armour
+    flowPlane: 0, //               $ traded since it last got an air strike
     flash: 0, //                   seconds of highlight after a whale
     troops: 0, //                  live soldiers belonging to this army
     reinforce: 0, //               fractional carry of the reinforcement drip

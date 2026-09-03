@@ -36,6 +36,14 @@ const TROOPS_BASE = 70
 const TROOPS_RANK = 130
 const TROOPS_FLOW = 60
 
+// Armour and aircraft are driven by DOLLARS TRADED, not by print count. The
+// free feed is sparse — half a print a second across all eight names — so
+// keying the spectacle to single big prints leaves the field silent for
+// minutes at a stretch. Flow is the honest measure anyway: what should put a
+// tank on the screen is money moving, not one lucky block crossing a line.
+const VEHICLE_FLOW_USD = 120_000
+const PLANE_FLOW_USD = 260_000
+
 // --- spawn helpers ---------------------------------------------------------
 
 function spawnFire(s, x, y, z, vx, vy, vz, size, life, c) {
@@ -461,15 +469,24 @@ export function applyEvent(state, e) {
         army.impulse += mag * (e.bucket === 'whale' ? 1.6 : e.bucket === 'dolphin' ? 0.5 : 0.12)
       }
 
-      if (e.notional >= PLANE_USD && army.planeCooldown <= 0) {
+      // accumulate this army's traded value; armour and air strikes come off it
+      army.flowVeh += e.notional
+      army.flowPlane += e.notional
+
+      if (
+        (e.notional >= PLANE_USD || army.flowPlane >= PLANE_FLOW_USD) &&
+        army.planeCooldown <= 0
+      ) {
         // bombers fly for the buyer; sellers call the strike down on this army
         spawnPlane(state, army.index, buy ? 0 : 1, 1)
         army.planeCooldown = 2.2
+        army.flowPlane = 0
       }
 
       if (e.bucket === 'whale') {
         spawnVehicle(state, army.index, buy ? 0 : 1, 0)
         army.vehicleCooldown = 0.8
+        army.flowVeh = 0
         if (buy) spawnPlane(state, army.index, 0, 0)
         army.flash = 1.2
         s.shake = Math.min(0.55, 0.16 + e.notional / 4_000_000)
@@ -482,9 +499,13 @@ export function applyEvent(state, e) {
         explosion(state, _p.x, sampleHeight(_p.x, _p.z) + 1, _p.z,
           4 + Math.min(4, e.notional / 400_000), 60 + mag * 12)
         if (!buy) s.lightning = Math.max(s.lightning, 0.08)
-      } else if (e.bucket === 'dolphin' && army.vehicleCooldown <= 0) {
+      } else if (
+        (e.bucket === 'dolphin' || army.flowVeh >= VEHICLE_FLOW_USD) &&
+        army.vehicleCooldown <= 0
+      ) {
         spawnVehicle(state, army.index, buy ? 0 : 1, 1)
         army.vehicleCooldown = 1.3
+        army.flowVeh = 0
       }
       break
     }
