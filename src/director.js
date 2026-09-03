@@ -7,9 +7,8 @@
 
 import { applyEvent } from './simulator.js'
 import { LABEL_USD, fmtUsd, fmtPct } from './config.js'
-import { WORDS, pick } from './comic.js'
 
-export function createDirector(state, hud, labels, audio, cameraDirector, comic) {
+export function createDirector(state, hud, labels, audio, cameraDirector) {
   function handle(e) {
     applyEvent(state, e)
 
@@ -19,8 +18,6 @@ export function createDirector(state, hud, labels, audio, cameraDirector, comic)
         if (e.notional >= LABEL_USD) labels.spawn(e, state)
         const army = state.bySymbol.get(e.symbol)
         if (e.bucket === 'whale') {
-          comic.burst(army, pick(e.side === 'buy' ? WORDS.bigBuy : WORDS.bigSell),
-            e.side === 'buy' ? (army?.colorCss || '#4ade80') : '#ff4d55', 1.35)
           audio.boom(e.notional >= 2_000_000 ? 1.5 : 1.2)
           hud.banner(
             `${e.symbol} ${e.side === 'buy' ? 'BLOCK BID' : 'BLOCK DUMP'} · ${fmtUsd(e.notional)}`,
@@ -28,10 +25,6 @@ export function createDirector(state, hud, labels, audio, cameraDirector, comic)
           )
           if (army) cameraDirector.focus(army.index, 3.4)
         } else if (e.bucket === 'dolphin') {
-          // not on every block, or the field turns into a wall of shouting
-          if (army && Math.random() < 0.45) {
-            comic.burst(army, pick(WORDS.armour), e.side === 'buy' ? army.colorCss : '#ff8a8a', 0.85)
-          }
           audio.blip(e.side)
         }
         break
@@ -63,7 +56,6 @@ export function createDirector(state, hud, labels, audio, cameraDirector, comic)
         if (s.leader >= 0 && s.prevLeader >= 0 && s.leaderHoldSec < 0.001) {
           const army = state.armies[s.leader]
           audio.takeover()
-          comic.burst(army, pick(WORDS.takeover), army.colorCss, 1.1)
           hud.banner(`${army.symbol} TAKES THE HILL`, army.colorCss)
           cameraDirector.focus(army.index, 3)
         }
