@@ -8,7 +8,7 @@
 // ============================================================================
 
 import * as THREE from 'three'
-import { ARENA, ARMIES, sampleHeight, polar, fmtPct, fmtPrice } from './config.js'
+import { ARENA, ARMIES, sampleHeight, polar, fmtPct } from './config.js'
 
 const CW = 384
 const CH = 232
@@ -36,37 +36,40 @@ export function createBanners(scene) {
   function draw(slot, army, leading) {
     const ctx = slot.ctx
     ctx.clearRect(0, 0, CW, CH)
-    ctx.textAlign = 'center'
 
-    // plate
-    const r = 16
-    ctx.beginPath()
-    ctx.roundRect(10, 20, CW - 20, CH - 52, r)
-    ctx.fillStyle = 'rgba(7,10,16,0.86)'
-    ctx.fill()
-    ctx.lineWidth = leading ? 6 : 3
-    ctx.strokeStyle = army.colorCss
-    ctx.stroke()
-
-    ctx.shadowColor = 'rgba(0,0,0,0.9)'
-    ctx.shadowBlur = 8
-
-    ctx.font = '800 60px "Barlow Condensed", "JetBrains Mono", sans-serif'
+    // A terminal chip, not a game plaque: square corners, hairline border, a
+    // colour bar down the left edge that ties the sign to its wedge.
+    const x = 8, y = 16, w = CW - 16, h = CH - 44
+    ctx.fillStyle = 'rgba(6,9,13,0.90)'
+    ctx.fillRect(x, y, w, h)
+    ctx.lineWidth = 2
+    ctx.strokeStyle = leading ? '#ffb020' : 'rgba(255,255,255,0.22)'
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
     ctx.fillStyle = army.colorCss
-    ctx.fillText(army.symbol, CW / 2, 86)
+    ctx.fillRect(x, y, 7, h)
 
-    // the live price, right under the ticker — the number people actually want
-    ctx.font = '700 42px "JetBrains Mono", monospace'
-    ctx.fillStyle = '#ffffff'
-    ctx.fillText(fmtPrice(army.price), CW / 2, 138)
+    const L = x + 22
+    ctx.textBaseline = 'alphabetic'
 
-    ctx.font = '700 40px "JetBrains Mono", monospace'
-    ctx.fillStyle = army.pct >= 0 ? '#4ade80' : '#ff6b6b'
-    ctx.fillText(fmtPct(army.pct), CW / 2, 184)
+    ctx.textAlign = 'left'
+    ctx.font = '700 46px "JetBrains Mono", monospace'
+    ctx.fillStyle = army.colorCss
+    ctx.fillText(army.symbol, L, y + 50)
 
-    ctx.font = '700 26px "Barlow Condensed", sans-serif'
-    ctx.fillStyle = leading ? '#ffd447' : 'rgba(190,200,214,0.85)'
-    ctx.fillText(leading ? '★ HOLDING THE HILL' : `#${army.rank}`, CW / 2, 216)
+    ctx.textAlign = 'right'
+    ctx.font = '700 26px "JetBrains Mono", monospace'
+    ctx.fillStyle = leading ? '#ffb020' : 'rgba(150,163,180,0.9)'
+    ctx.fillText(leading ? 'LEAD' : '#' + army.rank, x + w - 16, y + 48)
+
+    // the live price is the headline number on the field
+    ctx.textAlign = 'left'
+    ctx.font = '700 44px "JetBrains Mono", monospace'
+    ctx.fillStyle = '#e7eef7'
+    ctx.fillText(army.price > 0 ? army.price.toFixed(2) : '--.--', L, y + 100)
+
+    ctx.font = '700 34px "JetBrains Mono", monospace'
+    ctx.fillStyle = army.pct >= 0 ? '#00d68f' : '#ff4d55'
+    ctx.fillText(fmtPct(army.pct), L, y + 142)
 
     slot.tex.needsUpdate = true
   }
