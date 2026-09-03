@@ -38,7 +38,7 @@ export function createAtmosphere(scene, sun, hemi, fog, sky) {
     let sunI = num(ATMO.storm.sunI, ATMO.dusk.sunI, ATMO.dawn.sunI, t)
     if (s.lightning > 0) sunI += 2.6
     sun.intensity = sunI
-    hemi.intensity = 0.55 + Math.max(0, t) * 0.2
+    hemi.intensity = 1.05 + Math.max(0, t) * 0.35
 
     sky.uniforms.uZenith.value.copy(lerpKey(K.zen, t))
     sky.uniforms.uHorizon.value.copy(lerpKey(K.hor, t))

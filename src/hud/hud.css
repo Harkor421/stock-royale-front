@@ -152,7 +152,7 @@ html, body {
 .lb-mid { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .lb-line { display: flex; align-items: baseline; gap: 7px; }
 .lb-sym { font-family: var(--cond); font-weight: 800; font-size: 17px; letter-spacing: 0.04em; line-height: 1; }
-.lb-price { font-size: 10.5px; color: var(--dim); }
+.lb-price { font-size: 12px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
 .lb-bar { height: 4px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); overflow: hidden; }
 .lb-bar i { display: block; height: 100%; border-radius: 3px; transition: width 320ms ease-out; }
 .lb-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
