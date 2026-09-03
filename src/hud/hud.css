@@ -279,6 +279,59 @@ html, body {
 .winner-podium div:last-child { border-right: 0; }
 .winner-podium b { font-weight: 700; }
 
+/* ---------- the airdrop ---------- */
+.drop {
+  position: fixed; inset: 0; z-index: 6; pointer-events: none;
+  display: grid; place-items: center;
+  background: rgba(3, 5, 8, 0.78);
+  opacity: 0; transition: opacity 300ms ease;
+}
+.drop.show { opacity: 1; }
+.drop-card {
+  pointer-events: auto;
+  width: min(760px, calc(100vw - 40px));
+  background: var(--panel); border: 1px solid var(--line-2);
+  transform: translateY(8px); transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex; flex-direction: column; max-height: min(76vh, 660px);
+}
+.drop.show .drop-card { transform: none; }
+.drop-hd {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 7px 12px; background: var(--panel-hd); border-bottom: 1px solid var(--line);
+  font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim);
+}
+.drop-tag { padding: 2px 7px; border: 1px solid var(--amber); color: var(--amber); letter-spacing: 0.14em; }
+.drop-tag.demo { background: var(--amber); color: #0a0c10; font-weight: 700; }
+.drop-lede { padding: 16px 16px 12px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.drop-sym { font-size: 40px; font-weight: 800; letter-spacing: 0.04em; line-height: 1; }
+.drop-to { font-size: 12px; color: var(--dim); letter-spacing: 0.12em; text-transform: uppercase; }
+.drop-buy {
+  padding: 0 16px 12px; font-size: 11px; color: var(--dim);
+  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+}
+.drop-buy b { color: var(--text); font-weight: 700; }
+.drop .cols, .drop-row { grid-template-columns: 26px 1fr 62px 108px 22px; gap: 8px; }
+.drop-rows { overflow-y: auto; flex: 1; min-height: 60px; }
+.drop-row {
+  display: grid; align-items: center; padding: 3px 12px; font-size: 10.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  animation: rowIn 220ms ease-out;
+}
+.drop-row:nth-child(even) { background: var(--row-alt); }
+.drop-rank { color: var(--dimmer); }
+.drop-addr { color: var(--text); }
+.drop-pct { text-align: right; color: var(--dim); }
+.drop-amt { text-align: right; font-weight: 700; color: var(--up); }
+.drop-row a, .drop-buy a { color: var(--amber); text-decoration: none; }
+.drop-row a:hover, .drop-buy a:hover { text-decoration: underline; }
+.drop-ft {
+  padding: 8px 12px; border-top: 1px solid var(--line);
+  font-size: 10px; color: var(--dim);
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+}
+.drop-ft b { color: var(--text); }
+.drop-empty { padding: 18px 12px; color: var(--dimmer); font-size: 11px; text-align: center; }
+
 /* ---------- market closed ---------- */
 .closed {
   position: fixed; inset: 0; z-index: 4; pointer-events: none;
@@ -341,5 +394,9 @@ html, body {
   .winner-grid { grid-template-columns: repeat(2, 1fr); }
   .winner-grid div:nth-child(2) { border-right: 0; }
   .closed-title { font-size: 19px; }
+  .drop-card { width: calc(100vw - 16px); max-height: 82vh; }
+  .drop-sym { font-size: 26px; }
+  .drop .cols, .drop-row { grid-template-columns: 20px 1fr 48px 84px 18px; gap: 5px; }
+  .drop-row { font-size: 9.5px; padding: 3px 8px; }
 }
 

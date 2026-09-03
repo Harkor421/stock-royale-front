@@ -34,11 +34,14 @@ export const ARENA = Object.freeze({
   wedgeHalf: 0.36, // half-width of an army's lane in radians, where it still holds
   clashBand: 3.2, //  radial distance from the front where soldiers stop and fight
   /**
-   * The brawl. Inside this radius the lanes stop existing and every soldier
-   * fights whoever is next to him, whatever colour they are. It is deliberately
-   * wide: several armies' frontlines land inside it at once, so the eight of
-   * them physically overlap and grind against each other for the citadel.
+   * The siege. Whoever leads the round GARRISONS the citadel — its troops ring
+   * the hill at garrisonR and face outward. Everyone else is a besieger: they
+   * close to assaultR and fight the garrison from every direction at once.
+   * An attacking army only gets there if its frontline has advanced that far,
+   * so a ticker having a bad round is still stuck out in the open.
    */
+  garrisonR: 16,
+  assaultR: 23,
   meleeR: 46,
   amp: 1.5, //        terrain noise amplitude
   segTheta: 144, //   ground disc resolution
@@ -98,9 +101,9 @@ export function advanceToRadius(advance) {
 export const THRESH = Object.freeze({ fish: 10_000, dolphin: 50_000, whale: 150_000 })
 /** A print this big earns a floating price tag above the line (blocks only —
  *  tagging every round lot buries the battlefield in numbers). */
-export const LABEL_USD = 50_000
+export const LABEL_USD = 30_000
 /** A print this big scrambles a bomber. */
-export const PLANE_USD = 55_000
+export const PLANE_USD = 30_000
 
 /** Pool caps — preallocation sizes. Nothing ever spawns past these. */
 export const CAPS = Object.freeze({
