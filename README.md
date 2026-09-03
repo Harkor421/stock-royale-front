@@ -2,6 +2,8 @@
 
 **Eight US mega-caps fight a live five-minute battle royale on a 3D arena.** Every soldier on the field is a real print off the tape: buys charge in as that ticker's colours, sells come back as the crimson horde, blocks roll in as armour, and whales bring a tank, a jet and a crater. Whoever is closest to the citadel when the clock runs out wins the round — and a winner is crowned **every five minutes**, on the wall clock, for everyone watching at once.
 
+**▶ Live: https://stock-royale-alpha.vercel.app**
+
 Built with **Vite + Three.js**. The data is real: [**stock-royale-back**](https://github.com/Harkor421/stock-royale-back) reads the live tape through Finnhub and streams normalized battle events over WebSocket. The API key lives **only in the backend** — never in this bundle.
 
 ## The idea
@@ -30,6 +32,15 @@ VITE_BACKEND_URL=wss://your-backend.up.railway.app
 Start [stock-royale-back](https://github.com/Harkor421/stock-royale-back) in `npm run sim` mode to develop the battlefield at 3am with no key and no open market.
 
 `npm run build` produces a static bundle in `dist/` — it's a plain static site, deployable anywhere.
+
+## Deployment
+
+The two halves land in different places, and it isn't a preference:
+
+- **Frontend → Vercel.** A static bundle. The project is connected to this repo, so a push to `master` ships it. `VITE_BACKEND_URL` is a **build-time** variable — change it in the Vercel project settings and redeploy, editing it alone does nothing to the live bundle.
+- **Backend → Railway.** It holds an open WebSocket to the exchange feed and runs a round clock, so it has to be a long-lived process. Vercel's serverless functions can't host it.
+
+The deployed backend currently runs `SIM=1` — a synthetic tape — because it has no Finnhub key yet. The page says so in gold across the top bar, and the tab title is prefixed `[SIM]`. To switch it to the real market, set `FINNHUB_API_KEY` on the Railway service and remove `SIM`.
 
 ## Controls
 
