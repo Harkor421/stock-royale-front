@@ -32,6 +32,11 @@
 
 * { box-sizing: border-box; }
 
+/* The bar's cells are display:flex, and a class beats the user-agent rule for
+   [hidden] — without this the SIM warning stays on screen after the backend
+   switches to the real tape, which is exactly the wrong way round to fail. */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;

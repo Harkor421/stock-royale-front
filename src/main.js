@@ -30,6 +30,7 @@ import { createDirector } from './director.js'
 import { createHud } from './hud/hud.js'
 import { step } from './simulator.js'
 import { BackendSource } from './sources/backendSource.js'
+import * as logosModule from './logos.js'
 
 const canvas = document.getElementById('scene')
 const bus = createBus()
@@ -41,7 +42,7 @@ const arena = createArena(view.scene, assets)
 const armies = createArmies(view.scene, assets)
 const vehicles = createVehicles(view.scene, assets)
 const planes = createPlanes(view.scene, assets)
-const effects = createEffects(view.scene, state)
+const effects = createEffects(view.scene, state, assets)
 const labels = createLabels(view.scene)
 const banners = createBanners(view.scene)
 const atmosphere = createAtmosphere(view.scene, view.sun, view.hemi, view.fog, view.sky)
@@ -142,7 +143,7 @@ const hudTimer = setInterval(hudTick, CADENCE.hudMs)
 // forcing a camera cut, inspecting state). Stripped from production builds.
 if (import.meta.env.DEV) {
   window.__royale = {
-    view, state, hud, cameraDirector, bus,
+    view, state, hud, cameraDirector, bus, logos: logosModule,
     /** Advance the world by hand — the only way to inspect the 3D from a
      *  headless/occluded tab, where requestAnimationFrame never fires. */
     tick(frames = 1, dt = 1 / 60) {

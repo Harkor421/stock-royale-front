@@ -30,6 +30,12 @@ const WHITE = lin(0xffffff)
 
 const _p = { x: 0, z: 0 }
 
+// Standing-army size: a floor so no wedge is ever empty, plus what a ticker
+// earns by leading the round and by actually trading.
+const TROOPS_BASE = 70
+const TROOPS_RANK = 130
+const TROOPS_FLOW = 60
+
 // --- spawn helpers ---------------------------------------------------------
 
 function spawnFire(s, x, y, z, vx, vy, vz, size, life, c) {
@@ -59,6 +65,33 @@ function spawnDust(s, x, y, z, vx, vy, vz, size, life, grav, c) {
   d.maxlife[i] = life
   d.grav[i] = grav
   d.active[i] = 1
+}
+
+function spawnDebris(s, x, y, z, vx, vy, vz, size, life) {
+  const i = alloc(s.debris.fl)
+  if (i < 0) return
+  const d = s.debris
+  const o = i * 3
+  d.pos[o] = x; d.pos[o + 1] = y; d.pos[o + 2] = z
+  d.vel[o] = vx; d.vel[o + 1] = vy; d.vel[o + 2] = vz
+  d.rot[o] = Math.random() * 6.28; d.rot[o + 1] = Math.random() * 6.28; d.rot[o + 2] = Math.random() * 6.28
+  d.spin[o] = (Math.random() - 0.5) * 14
+  d.spin[o + 1] = (Math.random() - 0.5) * 14
+  d.spin[o + 2] = (Math.random() - 0.5) * 14
+  d.size[i] = size
+  d.life[i] = life
+  d.maxlife[i] = life
+  d.active[i] = 1
+}
+
+/** Leave a crater for the terrain to burn in. */
+function scorch(s, x, z, r) {
+  const sc = s.scorch
+  const i = sc.head % sc.x.length
+  sc.x[i] = x
+  sc.z[i] = z
+  sc.r[i] = r
+  sc.head++
 }
 
 function spawnTracer(s, x0, y0, z0, tx, ty, tz, radius) {
@@ -104,6 +137,30 @@ export function explosion(s, x, y, z, radius, mag) {
       (Math.random() - 0.5) * 1.2, 2.6 + Math.random() * 2.2, (Math.random() - 0.5) * 1.2,
       radius * 0.5 + 1.6, 1.5 + Math.random() * 1.1, -0.4, SMOKE)
   }
+  // chunks of ground and armour, tumbling
+  const chunks = Math.min(26, 4 + ((radius * 2.2) | 0))
+  for (let k = 0; k < chunks; k++) {
+    const th = Math.random() * Math.PI * 2
+    const ph = Math.acos(Math.random())
+    const sp = radius * (1.4 + Math.random() * 2.6)
+    spawnDebris(s, x, y + 0.3, z,
+      Math.sin(ph) * Math.cos(th) * sp, Math.cos(ph) * sp * 1.5 + 4, Math.sin(ph) * Math.sin(th) * sp,
+      0.22 + Math.random() * 0.5 * Math.min(2, radius / 3), 1.5 + Math.random() * 1.6)
+  }
+
+  // fast bright sparks that outrun the fireball
+  const sparks = Math.min(60, 12 + ((radius * 5) | 0))
+  for (let k = 0; k < sparks; k++) {
+    const th = Math.random() * Math.PI * 2
+    const ph = Math.acos(Math.random())
+    const sp = radius * (3 + Math.random() * 5)
+    spawnFire(s, x, y + 0.3, z,
+      Math.sin(ph) * Math.cos(th) * sp, Math.cos(ph) * sp + 3, Math.sin(ph) * Math.sin(th) * sp,
+      0.18 + Math.random() * 0.16, 0.35 + Math.random() * 0.5, FIRE_STOPS[1])
+  }
+
+  scorch(s, x, z, radius * 1.25)
+
   if (radius >= 4) {
     const capY = y + radius * 1.7 + 3
     const capR = radius * 0.95
@@ -120,6 +177,35 @@ export function explosion(s, x, y, z, radius, mag) {
         radius * 0.45 + 1.2, 1.6 + Math.random(), 0.1, SMOKE)
     }
   }
+}
+
+/**
+ * Kill `n` of an army's soldiers near its frontline. This is what a sell print
+ * looks like now: not an enemy faction spawning, but your own line thinning out
+ * and getting shoved back. Every unit on the field belongs to a ticker, so the
+ * fight the viewer sees is unambiguously stock against stock.
+ */
+function cullSoldiers(s, armyIdx, n) {
+  const so = s.soldiers
+  let killed = 0
+  // walk from a random offset so the same ranks aren't always the ones to die
+  const len = so.r.length
+  const start = (Math.random() * len) | 0
+  for (let k = 0; k < len && killed < n; k++) {
+    const i = (start + k) % len
+    if (!so.active[i] || so.army[i] !== armyIdx || so.st[i] === 2) continue
+    so.st[i] = 2
+    so.timer[i] = 0.35
+    polar(so.r[i], so.a[i], _p)
+    const hy = sampleHeight(_p.x, _p.z) + 0.5
+    for (let q = 0; q < 4; q++) {
+      spawnFire(s, _p.x, hy, _p.z, (Math.random() - 0.5) * 3, 1 + Math.random() * 2,
+        (Math.random() - 0.5) * 3, 0.4 + Math.random() * 0.4, 0.28, FIRE_STOPS[1])
+    }
+    spawnDust(s, _p.x, hy, _p.z, 0, 0.7, 0, 1.3, 0.8, 1, DUSTC)
+    killed++
+  }
+  return killed
 }
 
 function spawnSoldier(s, army, side, r, a, flag) {
@@ -147,6 +233,8 @@ function freeSoldier(s, i) {
   so.active[i] = 0
   if (so.side[i] === 0) so.countBull--
   else so.countBear--
+  const army = s.armies[so.army[i]]
+  if (army && army.troops > 0) army.troops--
   free(so.fl, i)
 }
 
@@ -259,7 +347,7 @@ function celebrateWinner(state, winner) {
   confettiBurst(state, 260, col)
   if (!army) return
   for (let k = 0; k < 90; k++) {
-    spawnSoldier(state, army.index, 0,
+    spawnSoldier(state, army.index, Math.random() < 0.25 ? 1 : 0,
       ARENA.hillR + Math.random() * 16,
       army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 2,
       Math.random() < 0.16)
@@ -342,8 +430,7 @@ export function applyEvent(state, e) {
     case 'trade': {
       const army = state.bySymbol.get(e.symbol)
       if (!army) break
-      const side = e.side === 'buy' ? 0 : 1
-      const sign = side === 0 ? -1 : 1 // a buy pushes the front toward the hill
+      const buy = e.side === 'buy'
       const mag = Math.min(6, 1 + Math.log10(Math.max(10, e.notional)) - 3)
       army.activity = Math.min(
         3.5,
@@ -358,24 +445,31 @@ export function applyEvent(state, e) {
       else if (e.bucket === 'fish') squad = 3 + ((Math.random() * 4) | 0)
       else squad = 1 + ((Math.random() * 2) | 0)
 
-      for (let c = 0; c < squad; c++) {
-        const a = army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 1.85
-        const r =
-          side === 0
-            ? Math.min(ARENA.rim - 1, army.front + 7 + Math.random() * 34)
-            : Math.max(ARENA.hillR + 3, army.front - 6 - Math.random() * 24)
-        spawnSoldier(state, army.index, side, r, a, false)
+      if (buy) {
+        // reinforcements march in from this army's own rear
+        const heavy = e.bucket === 'whale' || e.bucket === 'dolphin'
+        for (let c = 0; c < squad; c++) {
+          const a = army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 1.85
+          const r = Math.min(ARENA.rim - 1, army.front + 7 + Math.random() * 34)
+          // the big prints bring the heavier troopers, so a block reads on sight
+          spawnSoldier(state, army.index, heavy && c % 3 === 0 ? 1 : 0, r, a, false)
+        }
+        army.impulse -= mag * (e.bucket === 'whale' ? 1.6 : e.bucket === 'dolphin' ? 0.5 : 0.12)
+      } else {
+        // a sell thins this army's ranks and shoves its line back off the hill
+        cullSoldiers(state, army.index, Math.min(40, squad))
+        army.impulse += mag * (e.bucket === 'whale' ? 1.6 : e.bucket === 'dolphin' ? 0.5 : 0.12)
       }
 
       if (e.notional >= PLANE_USD && army.planeCooldown <= 0) {
-        spawnPlane(state, army.index, side, 1) // bomber run along this front
+        // bombers fly for the buyer; sellers call the strike down on this army
+        spawnPlane(state, army.index, buy ? 0 : 1, 1)
         army.planeCooldown = 1.1
       }
 
       if (e.bucket === 'whale') {
-        spawnVehicle(state, army.index, side, 0)
-        spawnPlane(state, army.index, side, 0)
-        army.impulse += sign * mag * 1.6
+        spawnVehicle(state, army.index, buy ? 0 : 1, 0)
+        if (buy) spawnPlane(state, army.index, 0, 0)
         army.flash = 1.2
         s.shake = Math.min(0.55, 0.16 + e.notional / 4_000_000)
         polar(army.front, army.angle, _p)
@@ -386,12 +480,9 @@ export function applyEvent(state, e) {
         polar(army.front, a, _p)
         explosion(state, _p.x, sampleHeight(_p.x, _p.z) + 1, _p.z,
           4 + Math.min(4, e.notional / 400_000), 60 + mag * 12)
-        if (side === 1) s.lightning = Math.max(s.lightning, 0.08)
+        if (!buy) s.lightning = Math.max(s.lightning, 0.08)
       } else if (e.bucket === 'dolphin') {
-        spawnVehicle(state, army.index, side, 1)
-        army.impulse += sign * mag * 0.5
-      } else {
-        army.impulse += sign * mag * 0.12
+        spawnVehicle(state, army.index, buy ? 0 : 1, 1)
       }
       break
     }
@@ -444,6 +535,34 @@ export function step(state, dt) {
   // the ring squeezes from the rim toward the hill as the round runs out
   s.stormR = ARENA.rim + 6 - (ARENA.rim + 6 - (ARENA.hillR + 6)) * s.roundProgress
 
+  // ---- reinforcements ----
+  // A real tape prints a handful of times a second per name, and the melee eats
+  // soldiers far faster than that, so an event-only population starves: eight
+  // empty wedges and nothing to watch. Each army instead keeps a standing force
+  // sized by how it is doing and how much of it is trading, topped up from its
+  // own rear. Individual prints still spawn their own visible squads on top —
+  // those are the drama; this is the war.
+  for (const army of state.armies) {
+    const flow = Math.min(1, (army.buyNotional + army.sellNotional) / 3_000_000)
+    const target = TROOPS_BASE + TROOPS_RANK * army.advance + TROOPS_FLOW * flow
+    const deficit = target - army.troops
+    if (deficit > 0) {
+      army.reinforce += deficit * 0.7 * dt
+      let n = army.reinforce | 0
+      if (n > 0) {
+        army.reinforce -= n
+        if (n > 24) n = 24 // never dump a wall of men in a single frame
+        for (let k = 0; k < n; k++) {
+          const a = army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 1.9
+          const r = Math.min(ARENA.rim - 1, army.front + 10 + Math.random() * 40)
+          spawnSoldier(state, army.index, Math.random() < 0.12 ? 1 : 0, r, a, false)
+        }
+      }
+    } else {
+      army.reinforce = 0
+    }
+  }
+
   // ---- per-army frontlines ----
   let leaderHold = true
   for (const army of state.armies) {
@@ -480,34 +599,56 @@ export function step(state, dt) {
     const army = state.armies[so.army[i]]
     const front = army.front
     const st = so.st[i]
+    const inMelee = so.r[i] < ARENA.meleeR
+
     if (st === 0) {
-      const inward = so.side[i] === 0 ? -1 : 1
       so.phase[i] += dt * 12
-      const speed = 3.2 + (i % 5) * 0.16
-      so.r[i] += inward * speed * dt
-      // tangential weave, converted to an angle so the linear speed is constant
+      // heavies march a little slower than riflemen, so a block print's squad
+      // arrives as a second wave behind its own skirmishers
+      const speed = (so.side[i] === 1 ? 2.5 : 3.3) + (i % 5) * 0.16
+      so.r[i] -= speed * dt
       so.a[i] += (so.weave[i] * Math.sin(so.phase[i] * 0.5) * dt) / Math.max(6, so.r[i])
-      // stay inside the lane
-      const off = so.a[i] - army.angle
-      const lim = ARENA.wedgeHalf
-      if (off > lim) so.a[i] = army.angle + lim
-      else if (off < -lim) so.a[i] = army.angle - lim
-      if (so.r[i] < ARENA.hillR - 2) so.r[i] = ARENA.hillR - 2
+
+      // Lane discipline dissolves as they close on the hill. Far out a soldier
+      // is pulled back toward his army's heading; near the citadel there is no
+      // heading left to keep and the eight columns fold into one mass.
+      const grip = Math.max(0, (so.r[i] - ARENA.meleeR) / (ARENA.rim - ARENA.meleeR))
+      if (grip > 0) {
+        let off = so.a[i] - army.angle
+        while (off > Math.PI) off -= Math.PI * 2
+        while (off < -Math.PI) off += Math.PI * 2
+        const slack = ARENA.wedgeHalf * (1 + (1 - grip) * 2.2)
+        if (off > slack) so.a[i] -= (off - slack) * grip * 3 * dt
+        else if (off < -slack) so.a[i] -= (off + slack) * grip * 3 * dt
+      }
+
+      if (so.r[i] < ARENA.hillR - 3) so.r[i] = ARENA.hillR - 3
       else if (so.r[i] > ARENA.rim) so.r[i] = ARENA.rim
-      if (Math.abs(so.r[i] - front) < ARENA.clashBand) {
+      // engage: at your army's own frontline, or the moment you reach the brawl
+      // hold at your army's own line, or pile into the brawl once you reach it
+      if (so.r[i] <= front + ARENA.clashBand || so.r[i] < ARENA.meleeR) {
         so.st[i] = 1
         so.timer[i] = 0
       }
     } else if (st === 1) {
       so.phase[i] += dt * 7
-      so.r[i] += (Math.random() - 0.5) * 0.6 * dt
-      so.a[i] += ((Math.random() - 0.5) * 0.5 * dt) / Math.max(6, so.r[i])
+      if (inMelee) {
+        // in the brawl everyone grinds toward the citadel and jostles sideways
+        // everyone grinds toward the citadel; how far you get is your army's line
+        so.r[i] += (so.r[i] > front ? -0.9 : 0.35) * dt
+        so.a[i] += ((Math.random() - 0.5) * 2.2 * dt) / Math.max(6, so.r[i])
+        if (so.r[i] < ARENA.hillR - 3) so.r[i] = ARENA.hillR - 3
+      } else {
+        so.r[i] += (Math.random() - 0.5) * 0.6 * dt
+        so.a[i] += ((Math.random() - 0.5) * 0.5 * dt) / Math.max(6, so.r[i])
+      }
       so.timer[i] += dt
-      if (Math.random() < dt * 3.6) {
+
+      if (Math.random() < dt * (inMelee ? 5.5 : 3.6)) {
         polar(so.r[i], so.a[i], _p)
-        const inward = so.side[i] === 0 ? -1 : 1
-        const dx = Math.cos(so.a[i]) * inward
-        const dz = Math.sin(so.a[i]) * inward
+        // fire inward, at whoever is between you and the hill
+        const dx = -Math.cos(so.a[i])
+        const dz = -Math.sin(so.a[i])
         const my = sampleHeight(_p.x, _p.z) + 0.58
         spawnFire(state, _p.x + dx * 0.35, my, _p.z + dz * 0.35,
           dx * 2, 0.6 + Math.random(), dz * 2, 0.32, 0.08, MUZZLE)
@@ -517,12 +658,19 @@ export function step(state, dt) {
           dz * (20 + Math.random() * 8) + (Math.random() - 0.5) * 3,
           0.16, 0.16 + Math.random() * 0.08, MUZZLE)
       }
-      // whoever is losing the tape loses the firefight
-      const losing = so.side[i] === 0 ? -army.pressure : army.pressure
-      let overrun = 0
-      if (so.side[i] === 0 && so.r[i] < front - 4) overrun = 0.5
-      else if (so.side[i] === 1 && so.r[i] > front + 4) overrun = 0.5
-      const deathP = 0.16 + Math.max(0, losing) * 0.7 + army.activity * 0.05 + overrun
+
+      // Who dies. In the brawl you are fighting the other seven armies, so what
+      // kills you is belonging to the one that is losing the round — the last
+      // place bleeds out at the centre while the leader walks onto the hill.
+      // Out on the open field it is your own ticker being sold that kills you.
+      let deathP
+      if (inMelee) {
+        deathP = 0.16 + (1 - army.advance) * 0.85 + Math.max(0, -army.pressure) * 0.3
+      } else {
+        const overrun = so.r[i] < front - 5 ? 0.5 : 0
+        deathP = 0.1 + Math.max(0, -army.pressure) * 0.6 + army.activity * 0.04 + overrun
+      }
+      if (so.side[i] === 1) deathP *= 0.55 // heavies take more killing
       if (Math.random() < deathP * dt) {
         so.st[i] = 2
         so.timer[i] = 0.35
@@ -686,14 +834,50 @@ export function step(state, dt) {
     }
   }
 
+  // ---- debris: gravity, tumble, one bounce, then settle and fade ----
+  const db = state.debris
+  for (let i = 0; i < db.size.length; i++) {
+    if (!db.active[i]) continue
+    const o = i * 3
+    db.pos[o] += db.vel[o] * dt
+    db.pos[o + 1] += db.vel[o + 1] * dt
+    db.pos[o + 2] += db.vel[o + 2] * dt
+    db.vel[o + 1] -= 26 * dt
+    db.rot[o] += db.spin[o] * dt
+    db.rot[o + 1] += db.spin[o + 1] * dt
+    db.rot[o + 2] += db.spin[o + 2] * dt
+    const gy = sampleHeight(db.pos[o], db.pos[o + 2])
+    if (db.pos[o + 1] < gy + 0.1) {
+      db.pos[o + 1] = gy + 0.1
+      if (db.vel[o + 1] < -3) {
+        db.vel[o + 1] *= -0.32 // one bounce, then it's dead weight
+        db.vel[o] *= 0.55
+        db.vel[o + 2] *= 0.55
+        db.spin[o] *= 0.5; db.spin[o + 1] *= 0.5; db.spin[o + 2] *= 0.5
+      } else {
+        db.vel[o] *= 0.82; db.vel[o + 1] = 0; db.vel[o + 2] *= 0.82
+        db.spin[o] *= 0.8; db.spin[o + 1] *= 0.8; db.spin[o + 2] *= 0.8
+      }
+    }
+    db.life[i] -= dt
+    if (db.life[i] <= 0) {
+      db.active[i] = 0
+      free(db.fl, i)
+    }
+  }
+
   // ---- clash ambience: embers along every army's contested line ----
   for (let ai = 0; ai < ARMIES; ai++) {
     const army = state.armies[ai]
     const emit = army.activity * 5 * dt + Math.random() * 0.16
     const count = emit | 0
     for (let c = 0; c < count; c++) {
-      const a = army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 1.9
-      polar(army.front + (Math.random() - 0.5) * 4, a, _p)
+      const brawling = army.front <= ARENA.meleeR
+      const a = brawling
+        ? Math.random() * Math.PI * 2
+        : army.angle + (Math.random() - 0.5) * ARENA.wedgeHalf * 1.9
+      const er = brawling ? ARENA.hillR + Math.random() * (ARENA.meleeR - ARENA.hillR) : army.front
+      polar(er + (Math.random() - 0.5) * 4, a, _p)
       const hy = sampleHeight(_p.x, _p.z)
       spawnFire(state, _p.x, hy + 0.3 + Math.random() * 0.7, _p.z,
         (Math.random() - 0.5) * 1.2, 1.2 + Math.random() * 1.6, (Math.random() - 0.5) * 1.2,
