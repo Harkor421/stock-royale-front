@@ -43,17 +43,21 @@ export function createLabels(scene) {
   function draw(slot, big, small, color) {
     const ctx = slot.ctx
     ctx.clearRect(0, 0, CW, CH)
-    ctx.textAlign = 'center'
-    ctx.textBaseline = 'middle'
-    ctx.shadowColor = 'rgba(0,0,0,0.92)'
-    ctx.shadowBlur = 7
-    ctx.shadowOffsetY = 2
-    ctx.font = '800 44px "JetBrains Mono", monospace'
+    const x = 6, y = 8, w = CW - 12, h = CH - 20
+    ctx.fillStyle = 'rgba(6,9,13,0.86)'
+    ctx.fillRect(x, y, w, h)
+    ctx.lineWidth = 2
+    ctx.strokeStyle = color
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
+
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'alphabetic'
+    ctx.font = '700 38px "JetBrains Mono", monospace'
     ctx.fillStyle = color
-    ctx.fillText(big, CW / 2, 34)
-    ctx.font = '500 26px "JetBrains Mono", monospace'
-    ctx.fillStyle = 'rgba(214,224,236,0.92)'
-    ctx.fillText(small, CW / 2, 74)
+    ctx.fillText(big, x + 14, y + 40)
+    ctx.font = '500 22px "JetBrains Mono", monospace'
+    ctx.fillStyle = 'rgba(170,182,198,0.95)'
+    ctx.fillText(small, x + 14, y + 70)
     slot.tex.needsUpdate = true
   }
 

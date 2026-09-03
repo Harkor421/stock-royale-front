@@ -1,9 +1,12 @@
 // ============================================================================
-// hud.js — the DOM overlay. It reads the same `state` the battlefield renders
-// from, so the numbers and the war can never disagree.
+// hud.js — the terminal overlay. It reads the same `state` the battlefield
+// renders from, so the numbers and the war can never disagree.
 //
-// Built once, then updated in place at ~8 Hz: rows are keyed by ticker and
-// moved with a transform, so a rank change slides instead of repainting.
+// Laid out as a trading desk rather than a game HUD: a standings blotter with
+// column headers and sparklines, a time & sales print log, a round clock on a
+// rail, past winners, and a tape crawling along the bottom. Built once, then
+// updated in place ~8×/s — rows are keyed by ticker and moved with a transform,
+// so a rank change slides instead of repainting.
 // ============================================================================
 
 import { ARMIES, fmtUsd, fmtPct, fmtPrice, fmtClock } from '../config.js'
@@ -12,7 +15,7 @@ import './hud.css'
 /** Row pitch, owned by hud.css (--row-h) so the phone breakpoint can change it
  *  in one place without the JS that positions rows drifting out of agreement. */
 const rowPitch = () =>
-  parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row-h')) || 46
+  parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row-h')) || 27
 
 const el = (tag, cls, html) => {
   const n = document.createElement(tag)
@@ -21,140 +24,229 @@ const el = (tag, cls, html) => {
   return n
 }
 
+const ET_TIME = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/New_York',
+  hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+})
+
 export function createHud(root) {
   root.innerHTML = ''
 
   // ---------------------------------------------------------------- top bar
-  const top = el('div', 'top')
-  const brand = el('div', 'brand')
-  brand.append(
-    el('div', '', `<div class="brand-mark">Stock Royale</div><div class="brand-sub">8 tickers enter · one flag stands</div>`)
-  )
-  const sessionPill = el('div', 'pill', '<span class="dot"></span><span>CONNECTING…</span>')
-  const simPill = el('div', 'pill sim', '<span class="dot"></span><span>SIMULATED TAPE · PRICES ARE NOT REAL</span>')
-  simPill.hidden = true
-  brand.append(sessionPill, simPill)
-
-  const clock = el('div', 'panel clock')
-  clock.innerHTML = `
-    <div class="clock-ring">
-      <svg width="54" height="54"><circle class="bg" cx="27" cy="27" r="23"></circle><circle class="fg" cx="27" cy="27" r="23"></circle></svg>
-      <div class="clock-num">5:00</div>
+  // One strip, cells divided by hairlines — a terminal's status bar, not a row
+  // of floating boxes. Boxes wrap and reflow the moment the window narrows;
+  // cells just drop by priority (data-p) and the bar stays one line.
+  const top = el('div', 'panel bar')
+  top.innerHTML = `
+    <div class="cell brand"><b class="full">Stock<i>·</i>Royale</b><b class="short">S<i>·</i>R</b></div>
+    <div class="cell kv" data-p="4"><span class="k">Format</span><span class="v dim">8 tickers · 5-min rounds</span></div>
+    <div class="cell kv" data-p="2"><span class="k">Session</span><span class="v sess">CONNECTING…</span></div>
+    <div class="cell kv round">
+      <span class="k">Round ends in</span>
+      <span class="v"><b class="clock-num">—</b><i class="clock-round"></i></span>
+      <span class="rail"><i></i></span>
     </div>
-    <div class="clock-meta">
-      <div class="clock-label">Round ends in</div>
-      <div class="clock-round">—</div>
-    </div>`
-  const ring = clock.querySelector('.fg')
-  const clockNum = clock.querySelector('.clock-num')
-  const clockRound = clock.querySelector('.clock-round')
-  const CIRC = 2 * Math.PI * 23
-  ring.style.strokeDasharray = `${CIRC}`
-
-  const topRight = el('div', 'top-right')
-  const soundBtn = el('button', 'btn', '🔇')
+    <div class="cell kv" data-p="3"><span class="k">New York</span><span class="v et">--:--:--</span></div>
+    <div class="cell flag link"><span class="dot"></span><span class="lbl">Link down</span></div>
+    <div class="cell flag sim"><span class="dot"></span><span class="full">Simulated tape · not real prices</span><span class="short">Sim</span></div>`
+  const soundBtn = el('button', 'cell btn', '×')
   soundBtn.title = 'Sound (M)'
-  const linkPill = el('div', 'pill', '<span class="dot"></span><span>OFFLINE</span>')
-  topRight.append(linkPill, soundBtn)
+  top.append(soundBtn)
 
-  top.append(brand, clock, topRight)
+  const sessionV = top.querySelector('.sess')
+  const clockCell = top.querySelector('.cell.round')
+  const clockNum = top.querySelector('.clock-num')
+  const clockRound = top.querySelector('.clock-round')
+  const rail = top.querySelector('.rail i')
+  const timeV = top.querySelector('.et')
+  const linkFlag = top.querySelector('.cell.flag.link')
+  const linkLbl = linkFlag.querySelector('.lbl')
+  const simFlag = top.querySelector('.cell.flag.sim')
+  simFlag.hidden = true
 
-  // ------------------------------------------------------------ leaderboard
+  // ------------------------------------------------------------ standings
   const board = el('div', 'panel board')
-  board.append(el('div', 'panel-title', '<span>Standings</span><span id="hud-round-label"></span>'))
+  board.append(el('div', 'panel-title', '<span>Standings — round P&amp;L</span><b class="hud-round"></b>'))
+  board.append(el('div', 'cols', '<span>#</span><span>Sym</span><span class="r">Last</span><span class="r">Chg%</span><span class="r">Trend</span>'))
   const lbRows = el('div', 'lb-rows')
+  board.append(lbRows)
+  const roundLabel = board.querySelector('.hud-round')
+
   let ROW_H = rowPitch()
-  lbRows.style.height = ARMIES * ROW_H + 6 + 'px'
+  lbRows.style.height = ARMIES * ROW_H + 'px'
   const onResize = () => {
     ROW_H = rowPitch()
-    lbRows.style.height = ARMIES * ROW_H + 6 + 'px'
+    lbRows.style.height = ARMIES * ROW_H + 'px'
   }
   window.addEventListener('resize', onResize)
-  board.append(lbRows)
-  const roundLabel = board.querySelector('#hud-round-label')
 
-  // -------------------------------------------------------------- the feed
-  const feed = el('div', 'panel feed')
-  feed.append(el('div', 'panel-title', '<span>Tape</span>'))
+  // -------------------------------------------------------- time & sales
+  const blotter = el('div', 'panel blotter')
+  blotter.append(el('div', 'panel-title', '<span>Time &amp; sales</span>'))
+  blotter.append(el('div', 'cols', '<span>Time</span><span>Sym</span><span></span><span class="r">Size @ Px</span><span class="r">Value</span>'))
   const feedRows = el('div', 'feed-rows')
-  feed.append(feedRows)
+  blotter.append(feedRows)
 
-  // ------------------------------------------------------------ hall of fame
+  // ------------------------------------------------------- round winners
   const fame = el('div', 'panel fame')
-  fame.append(el('div', 'panel-title', '<span>Past winners</span>'))
+  fame.append(el('div', 'panel-title', '<span>Round winners</span>'))
+  fame.append(el('div', 'cols', '<span>Round</span><span>Sym</span><span class="r">Chg%</span>'))
   const fameRows = el('div', 'fame-rows')
   fameRows.append(el('div', 'fame-empty', 'No rounds decided yet.'))
   fame.append(fameRows)
 
-  // ------------------------------------------------------------ banner slot
+  // ------------------------------------------------------------ the tape
+  const tape = el('div', 'tape')
+  const tapeTrack = el('div', 'tape-track')
+  tape.append(tapeTrack)
+
   const bannerWrap = el('div', 'banner-wrap')
 
-  root.append(top, board, bannerWrap, feed, fame)
+  root.append(top, board, bannerWrap, blotter, fame, tape)
 
-  // --------------------------------------------------------- full-screen UI
+  // --------------------------------------------------------- full-screen
   const winner = el('div', 'winner')
   winner.innerHTML = `
     <div class="winner-card">
-      <div class="winner-kicker">Round winner</div>
-      <div class="winner-sym">—</div>
-      <div class="winner-pct">—</div>
-      <div class="winner-meta"></div>
+      <div class="winner-hd"><span>Round winner</span><span class="winner-round"></span></div>
+      <div class="winner-body">
+        <div class="winner-sym">—</div>
+        <div class="winner-pct">—</div>
+        <div class="winner-grid">
+          <div><div class="winner-k">Last</div><div class="winner-v w-last">—</div></div>
+          <div><div class="winner-k">Margin</div><div class="winner-v w-lead">—</div></div>
+          <div><div class="winner-k">Prints</div><div class="winner-v w-trades">—</div></div>
+          <div><div class="winner-k">Bought 30s</div><div class="winner-v w-buy">—</div></div>
+        </div>
+      </div>
       <div class="winner-podium"></div>
     </div>`
   document.body.append(winner)
   const wSym = winner.querySelector('.winner-sym')
   const wPct = winner.querySelector('.winner-pct')
-  const wMeta = winner.querySelector('.winner-meta')
+  const wRound = winner.querySelector('.winner-round')
+  const wLast = winner.querySelector('.w-last')
+  const wLead = winner.querySelector('.w-lead')
+  const wTrades = winner.querySelector('.w-trades')
+  const wBuy = winner.querySelector('.w-buy')
   const wPodium = winner.querySelector('.winner-podium')
 
   const closed = el('div', 'closed')
   closed.innerHTML = `
     <div class="closed-card">
-      <div class="closed-title">Market closed</div>
-      <div class="closed-sub">The armies stand down until the tape reopens.</div>
-      <div class="closed-count">—</div>
+      <div class="winner-hd"><span>Session</span><span>US equities</span></div>
+      <div class="closed-body">
+        <div class="closed-title">Market closed</div>
+        <div class="closed-sub">The armies stand down until the tape reopens.</div>
+        <div class="closed-count">—</div>
+      </div>
     </div>`
   document.body.append(closed)
   const closedCount = closed.querySelector('.closed-count')
   const closedSub = closed.querySelector('.closed-sub')
 
-  // ------------------------------------------------------------------ rows
-  /** @type {Map<string, {row:HTMLElement, sym:HTMLElement, ...}>} */
+  // ------------------------------------------------------------ row build
   const rows = new Map()
-
+  const tapeItems = new Map()
   let rosterSig = ''
+
   function ensureRows(state) {
     const sig = state.armies.map((a) => a.symbol + a.colorCss).join(',')
     if (sig === rosterSig) return
     rosterSig = sig
     lbRows.innerHTML = ''
+    tapeTrack.innerHTML = ''
     rows.clear()
+    tapeItems.clear()
+
     for (const army of state.armies) {
       const row = el('div', 'lb-row')
       row.innerHTML = `
-        <div class="lb-rank">—</div>
-        <div class="lb-mid">
-          <div class="lb-line"><span class="lb-sym"></span><span class="lb-price">—</span></div>
-          <div class="lb-bar"><i></i></div>
-        </div>
-        <div class="lb-right">
-          <div class="lb-pct">0.00%</div>
-          <div class="lb-press"><i></i></div>
-        </div>`
+        <span class="lb-rank">—</span>
+        <span class="lb-sym"></span>
+        <span class="lb-last">—</span>
+        <span class="lb-pct">0.00%</span>
+        <canvas class="lb-spark" width="92" height="32"></canvas>
+        <i class="lb-adv"></i>`
       const sym = row.querySelector('.lb-sym')
       sym.textContent = army.symbol
       sym.style.color = army.colorCss
-      row.querySelector('.lb-bar i').style.background = army.colorCss
+      const adv = row.querySelector('.lb-adv')
+      adv.style.background = army.colorCss
       lbRows.append(row)
       rows.set(army.symbol, {
         row,
         rank: row.querySelector('.lb-rank'),
-        price: row.querySelector('.lb-price'),
-        bar: row.querySelector('.lb-bar i'),
+        last: row.querySelector('.lb-last'),
         pct: row.querySelector('.lb-pct'),
-        press: row.querySelector('.lb-press i'),
+        adv,
+        spark: row.querySelector('.lb-spark'),
+        sctx: row.querySelector('.lb-spark').getContext('2d'),
+        sparkSig: '',
       })
     }
+
+    // The tape needs its content twice: the crawl animation translates the
+    // track by -50%, so the second copy is what's on screen when the first has
+    // scrolled off. Both copies are updated in place — rebuilding the DOM would
+    // restart the animation and make the tape stutter every tick.
+    for (let copy = 0; copy < 2; copy++) {
+      for (const army of state.armies) {
+        const item = el('span', 'tape-item')
+        item.innerHTML =
+          `<span class="tape-sym" style="color:${army.colorCss}">${army.symbol}</span>` +
+          '<span class="tape-last">—</span><span class="tape-chg">—</span>'
+        tapeTrack.append(item)
+        const list = tapeItems.get(army.symbol) || []
+        list.push({ last: item.querySelector('.tape-last'), chg: item.querySelector('.tape-chg') })
+        tapeItems.set(army.symbol, list)
+      }
+    }
+  }
+
+  /** A sparkline of the ticker's round P&L. Redrawn only when the series moves. */
+  function drawSpark(r, army) {
+    const s = army.spark
+    const sig = s.length + ':' + (s.length ? s[s.length - 1] : '')
+    if (sig === r.sparkSig) return
+    r.sparkSig = sig
+    const ctx = r.sctx
+    const W = r.spark.width
+    const H = r.spark.height
+    ctx.clearRect(0, 0, W, H)
+    if (s.length < 2) return
+
+    let lo = Infinity
+    let hi = -Infinity
+    for (const v of s) {
+      if (v < lo) lo = v
+      if (v > hi) hi = v
+    }
+    // always keep the zero line inside the frame — a sparkline that hides
+    // whether the ticker is up or down is decoration, not data
+    lo = Math.min(lo, 0)
+    hi = Math.max(hi, 0)
+    const span = Math.max(hi - lo, 0.02)
+    const y = (v) => H - 3 - ((v - lo) / span) * (H - 6)
+    const x = (i) => (i / (s.length - 1)) * (W - 1)
+
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)'
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(0, Math.round(y(0)) + 0.5)
+    ctx.lineTo(W, Math.round(y(0)) + 0.5)
+    ctx.stroke()
+
+    ctx.strokeStyle = army.pct >= 0 ? '#00d68f' : '#ff4d55'
+    ctx.lineWidth = 1.6
+    ctx.lineJoin = 'round'
+    ctx.beginPath()
+    for (let i = 0; i < s.length; i++) {
+      const px = x(i)
+      const py = y(s[i])
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py)
+    }
+    ctx.stroke()
   }
 
   // ---------------------------------------------------------------- update
@@ -164,48 +256,59 @@ export function createHud(root) {
     const s = state.scalars
     ensureRows(state)
 
-    // -- standings
     for (const army of state.armies) {
       const r = rows.get(army.symbol)
       if (!r) continue
       r.row.style.transform = `translateY(${(army.rank - 1) * ROW_H}px)`
       r.row.classList.toggle('leader', s.leader === army.index)
       r.rank.textContent = army.rank
-      r.price.textContent = fmtPrice(army.price)
+      r.last.textContent = army.price > 0 ? army.price.toFixed(2) : '—'
       r.pct.textContent = fmtPct(army.pct)
       r.pct.className = 'lb-pct ' + (army.pct >= 0 ? 'up' : 'down')
-      r.bar.style.width = Math.round(6 + army.advance * 94) + '%'
-      // pressure: a bar growing left (selling) or right (buying) from centre
-      const p = Math.max(-1, Math.min(1, army.pressure))
-      const w = Math.abs(p) * 50
-      r.press.style.width = w + '%'
-      r.press.style.left = p >= 0 ? '50%' : 50 - w + '%'
-      r.press.style.background = p >= 0 ? 'var(--up)' : 'var(--down)'
+      r.adv.style.width = Math.round(army.advance * 100) + '%'
+      drawSpark(r, army)
+
+      const t = tapeItems.get(army.symbol)
+      if (t) {
+        const last = army.price > 0 ? army.price.toFixed(2) : '—'
+        const chg = fmtPct(army.pct)
+        const cls = 'tape-chg ' + (army.pct >= 0 ? 'up' : 'down')
+        for (const item of t) {
+          if (item.last.textContent !== last) item.last.textContent = last
+          if (item.chg.textContent !== chg) {
+            item.chg.textContent = chg
+            item.chg.className = cls
+          }
+        }
+      }
     }
 
-    // -- session
-    simPill.hidden = !s.sim
-    if (s.sim && !document.title.startsWith('[SIM]')) document.title = '[SIM] ' + document.title
+    // -- session + link
     const live = s.session?.live
-    sessionPill.className = 'pill ' + (live ? 'live' : 'closed')
-    sessionPill.lastChild.textContent = s.session?.label || '—'
-    linkPill.className = 'pill ' + (s.connected ? 'live' : 'closed')
-    linkPill.lastChild.textContent = s.connected ? 'BACKEND LIVE' : 'OFFLINE'
+    sessionV.textContent = s.session?.label || '—'
+    sessionV.style.color = live ? 'var(--up)' : 'var(--down)'
+    linkFlag.className = 'cell flag link ' + (s.connected ? 'on' : 'off')
+    linkLbl.textContent = s.connected ? 'Feed live' : 'Link down'
+    simFlag.hidden = !s.sim
+    if (s.sim && !document.title.startsWith('[SIM]')) document.title = '[SIM] ' + document.title
+
+    timeV.textContent = ET_TIME.format(new Date(Date.now() + s.serverSkewMs))
 
     // -- round clock
     if (s.round && live) {
       const now = Date.now() + s.serverSkewMs
       const left = Math.max(0, s.round.endsAt - now)
       clockNum.textContent = fmtClock(left)
-      clockRound.textContent = `Round ${s.round.label} ET`
-      ring.style.strokeDashoffset = String(CIRC * s.roundProgress)
-      clock.classList.toggle('urgent', left <= 15000)
+      clockRound.textContent = s.round.label + ' ET'
+      rail.style.width = (s.roundProgress * 100).toFixed(1) + '%'
+      clockCell.classList.toggle('urgent', left <= 15000)
       roundLabel.textContent = s.round.label + ' ET'
     } else {
       clockNum.textContent = '—'
-      clockRound.textContent = live ? 'Waiting for the tape' : 'Standing down'
-      ring.style.strokeDashoffset = String(CIRC)
-      clock.classList.remove('urgent')
+      clockRound.textContent = live ? 'awaiting tape' : 'stood down'
+      rail.style.width = '0%'
+      clockCell.classList.remove('urgent')
+      roundLabel.textContent = ''
     }
 
     // -- closed-market overlay
@@ -215,75 +318,77 @@ export function createHud(root) {
       const h = Math.floor(left / 3600000)
       const m = Math.floor((left % 3600000) / 60000)
       const sec = Math.floor((left % 60000) / 1000)
-      closedCount.textContent = h > 0 ? `${h}h ${m}m` : `${m}:${String(sec).padStart(2, '0')}`
-      closedSub.textContent = `The armies stand down until ${labelFor(s.session.nextState)}.`
+      closedCount.textContent = h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : `${m}:${String(sec).padStart(2, '0')}`
+      closedSub.textContent = `Next session: ${labelFor(s.session.nextState)}.`
     } else {
       closed.classList.remove('show')
     }
 
-    // -- hall of fame
+    // -- past winners
     const hist = s.history || []
     const sig = hist.map((h) => h.round?.id + ':' + (h.winner?.symbol || '-')).join('|')
     if (sig !== lastFameSig) {
       lastFameSig = sig
       fameRows.innerHTML = ''
       if (!hist.length) fameRows.append(el('div', 'fame-empty', 'No rounds decided yet.'))
-      for (const h of hist.slice(0, 8)) {
-        const row = el('div', 'fame-row')
+      for (const h of hist.slice(0, 10)) {
         const col = state.bySymbol.get(h.winner?.symbol)?.colorCss || 'var(--dim)'
-        row.innerHTML = `
-          <span class="fame-time">${h.round?.label ?? '—'}</span>
-          <span class="fame-sym" style="color:${col}">${h.winner?.symbol ?? 'NO CONTEST'}</span>
-          <span class="fame-pct">${h.winner ? fmtPct(h.winner.pct) : ''}</span>`
-        fameRows.append(row)
+        fameRows.append(
+          el('div', 'fame-row',
+            `<span class="fame-time">${h.round?.label ?? '—'}</span>` +
+            `<span class="fame-sym" style="color:${col}">${h.winner?.symbol ?? 'NO CONTEST'}</span>` +
+            `<span class="fame-pct">${h.winner ? fmtPct(h.winner.pct) : ''}</span>`)
+        )
       }
     }
   }
 
   const labelFor = (st) =>
-    st === 'pre' ? 'the pre-market open' : st === 'regular' ? 'the opening bell' : st === 'post' ? 'after hours' : 'the next session'
+    st === 'pre' ? 'pre-market, 04:00 ET' : st === 'regular' ? 'the opening bell, 09:30 ET'
+      : st === 'post' ? 'after hours, 16:00 ET' : 'the next session'
 
-  // ------------------------------------------------------------------ feed
+  // ------------------------------------------------------- time & sales
   function pushFeed(e, state) {
     const army = state.bySymbol.get(e.symbol)
-    const row = el('div', 'feed-row' + (e.bucket === 'whale' || e.bucket === 'dolphin' ? ' big' : ''))
-    const verb =
-      e.bucket === 'whale' ? (e.side === 'buy' ? 'block bid' : 'block dumped') :
-      e.bucket === 'dolphin' ? (e.side === 'buy' ? 'bought' : 'sold') :
-      e.side === 'buy' ? 'lifted' : 'hit'
-    row.innerHTML = `
-      <span class="feed-sym" style="color:${army?.colorCss || 'var(--dim)'}">${e.symbol}</span>
-      <span class="feed-txt">${verb} ${e.size.toLocaleString()} @ $${e.price.toFixed(2)}</span>
-      <span class="feed-amt ${e.side}">${e.side === 'buy' ? '+' : '−'}${fmtUsd(e.notional)}</span>`
+    const block = e.bucket === 'whale' || e.bucket === 'dolphin'
+    const row = el('div', 'feed-row' + (block ? ' blk' : ''))
+    row.innerHTML =
+      `<span class="feed-time">${ET_TIME.format(new Date(e.ts))}</span>` +
+      `<span class="feed-sym" style="color:${army?.colorCss || 'var(--dim)'}">${e.symbol}</span>` +
+      `<span class="feed-side ${e.side}">${e.side === 'buy' ? 'B' : 'S'}</span>` +
+      `<span class="feed-px">${e.size.toLocaleString()} @ ${e.price.toFixed(2)}</span>` +
+      `<span class="feed-val ${e.side}">${fmtUsd(e.notional)}</span>`
     feedRows.prepend(row)
-    while (feedRows.children.length > 12) feedRows.lastChild.remove()
+    while (feedRows.children.length > 11) feedRows.lastChild.remove()
   }
 
-  // ---------------------------------------------------------------- banner
+  // ---------------------------------------------------------------- shouts
   let bannerTimer = null
   function banner(text, color) {
     const b = el('div', 'banner', text)
     if (color) {
       b.style.color = color
-      b.style.borderColor = color + '66'
+      b.style.borderLeftColor = color
     }
     bannerWrap.innerHTML = ''
     bannerWrap.append(b)
     clearTimeout(bannerTimer)
     bannerTimer = setTimeout(() => {
       b.classList.add('out')
-      setTimeout(() => b.remove(), 420)
+      setTimeout(() => b.remove(), 340)
     }, 2100)
   }
 
   // ---------------------------------------------------------------- winner
   function showWinner(payload, state) {
     const w = payload.winner
+    wRound.textContent = payload.round?.label ? payload.round.label + ' ET' : ''
     if (!w) {
       wSym.textContent = 'NO CONTEST'
       wSym.style.color = 'var(--dim)'
       wPct.textContent = 'Not a single print all round'
-      wMeta.textContent = ''
+      wPct.style.color = 'var(--dim)'
+      wLast.textContent = wLead.textContent = wTrades.textContent = wBuy.textContent = '—'
       wPodium.innerHTML = ''
     } else {
       const col = state.bySymbol.get(w.symbol)?.colorCss || '#fff'
@@ -291,23 +396,25 @@ export function createHud(root) {
       wSym.style.color = col
       wPct.textContent = fmtPct(w.pct)
       wPct.style.color = w.pct >= 0 ? 'var(--up)' : 'var(--down)'
-      wMeta.textContent = `${fmtPrice(w.price)} · won by ${w.lead.toFixed(2)} pts · ${w.trades.toLocaleString()} prints · ${fmtUsd(w.buyNotional)} bought in the last 30s`
+      wLast.textContent = fmtPrice(w.price)
+      wLead.textContent = '+' + w.lead.toFixed(2) + ' pts'
+      wTrades.textContent = w.trades.toLocaleString()
+      wBuy.textContent = fmtUsd(w.buyNotional)
       wPodium.innerHTML = ''
       payload.podium.slice(1, 3).forEach((p, i) => {
-        const d = el('div', '', `<b style="color:${state.bySymbol.get(p.symbol)?.colorCss || '#fff'}">${p.symbol}</b>${i === 0 ? '2nd' : '3rd'} · ${fmtPct(p.pct)}`)
-        wPodium.append(d)
+        const c = state.bySymbol.get(p.symbol)?.colorCss || '#fff'
+        wPodium.append(el('div', '', `${i === 0 ? '2nd' : '3rd'} &nbsp;<b style="color:${c}">${p.symbol}</b> &nbsp;${fmtPct(p.pct)}`))
       })
     }
     winner.classList.add('show')
   }
   const hideWinner = () => winner.classList.remove('show')
 
-  // ----------------------------------------------------------------- misc
-  function onSoundToggle(fn) {
-    soundBtn.addEventListener('click', fn)
-  }
+  // ------------------------------------------------------------------ misc
+  const onSoundToggle = (fn) => soundBtn.addEventListener('click', fn)
   const setSoundIcon = (muted) => {
-    soundBtn.textContent = muted ? '🔇' : '🔊'
+    soundBtn.textContent = muted ? '×' : '♪'
+    soundBtn.style.color = muted ? '' : 'var(--amber)'
   }
 
   return {
