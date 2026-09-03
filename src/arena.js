@@ -249,7 +249,7 @@ export function createArena(scene, assets) {
     //    and 30 Hz of repaint is invisible, but it halves the CPU cost.
     for (let i = 0; i < ARMIES; i++) {
       const army = state.armies[i]
-      armyTint[i].setHex(army.color).lerp(_c.setHex(COLORS.ground), 0.72)
+      armyTint[i].setHex(army.color).lerp(_c.setHex(COLORS.ground), 0.5)
     }
     repaintPhase ^= 1
     for (let i = repaintPhase; i < N; i += 2) {

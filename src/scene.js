@@ -27,7 +27,7 @@ export function createScene(canvas) {
   renderer.setPixelRatio(dpr())
   renderer.setSize(window.innerWidth, window.innerHeight, false)
   renderer.toneMapping = THREE.ACESFilmicToneMapping
-  renderer.toneMappingExposure = 0.95
+  renderer.toneMappingExposure = 1.15
   renderer.shadowMap.enabled = true
   renderer.shadowMap.type = THREE.PCFSoftShadowMap
 
@@ -55,7 +55,7 @@ export function createScene(canvas) {
   controls.enablePan = false
   controls.update()
 
-  const hemi = new THREE.HemisphereLight(COLORS.hemiSky, COLORS.hemiGround, 0.6)
+  const hemi = new THREE.HemisphereLight(COLORS.hemiSky, COLORS.hemiGround, 1.15)
   scene.add(hemi)
 
   // The key light casts the arena's shadows. Its ortho frustum is fitted to the
@@ -72,11 +72,12 @@ export function createScene(canvas) {
   sun.shadow.camera.far = 420
   sun.shadow.bias = -0.0006
   sun.shadow.normalBias = 0.55
+  sun.shadow.intensity = 0.72 // let some bounce light into the shadowed side
   scene.add(sun)
   scene.add(sun.target)
 
   // a cool fill from the opposite side so the shadowed faces aren't dead black
-  const fill = new THREE.DirectionalLight(0x7fa6d8, 0.35)
+  const fill = new THREE.DirectionalLight(0x9dc0ea, 0.7)
   fill.position.set(-110, 70, 120)
   scene.add(fill)
 
@@ -87,9 +88,10 @@ export function createScene(canvas) {
   composer.addPass(new RenderPass(scene, camera))
   const bloom = new UnrealBloomPass(
     new THREE.Vector2(window.innerWidth, window.innerHeight),
-    0.5, //  strength
+    0.42, // strength
     0.45, // radius
-    1.02 //  threshold — ONLY fire, tracers and the ring bloom; lit ground must not
+    1.25 //  threshold — ONLY fire, tracers and the ring bloom; lit ground must not.
+    //        Raise this whenever the scene gets brighter, or the frame fogs to milk.
   )
   composer.addPass(bloom)
   composer.addPass(new OutputPass())

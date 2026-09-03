@@ -145,16 +145,16 @@ export const COLORS = Object.freeze({
   bear: 0x8b0e18, //      the sell horde — deliberately darker than every army color
   bearTank: 0x5e0910,
   gold: 0xffc53d,
-  ground: 0x28322a,
-  groundLo: 0x1a211c,
-  groundHi: 0x37432f,
-  scorched: 0x2a1a18, //  ground the bears have taken back
-  scorchedHi: 0x3a2420,
-  rock: 0x6a6255,
-  rockDark: 0x3c382f,
-  citadel: 0x8d8674,
-  citadelDark: 0x4b4639,
-  wall: 0x4a4437,
+  ground: 0x4a5c42,
+  groundLo: 0x33402f,
+  groundHi: 0x627750,
+  scorched: 0x5a3a30, //  ground the bears have taken back
+  scorchedHi: 0x6d4a3c,
+  rock: 0x8a8172,
+  rockDark: 0x5b564a,
+  citadel: 0xb0a893,
+  citadelDark: 0x6d6653,
+  wall: 0x6d6553,
   ember: 0xff6a2c,
   fire: [0xfff4c2, 0xffc53d, 0xff6a2a, 0xc4321c, 0x3a3a3a],
   muzzle: 0xffe9a8,
@@ -162,15 +162,15 @@ export const COLORS = Object.freeze({
   dust: 0x6b5e48,
   storm: 0x6ad2ff, //     the closing ring
   stormHot: 0xff4d6d, //  the closing ring in the last 30 seconds
-  hemiSky: 0x44546f,
-  hemiGround: 0x2a241e,
+  hemiSky: 0x8fb0d8,
+  hemiGround: 0x574434,
 })
 
 /** Sky keyframes selected by the smoothed aggregate pressure of all 8 armies. */
 export const ATMO = Object.freeze({
-  storm: { zenith: 0x080d14, horizon: 0x241c15, fog: 0x0f0d12, near: 80, far: 380, sun: 0x4d5a74, sunI: 0.5 },
-  dusk:  { zenith: 0x131d31, horizon: 0x332c3d, fog: 0x14151f, near: 140, far: 560, sun: 0xffe0b8, sunI: 1.0 },
-  dawn:  { zenith: 0x1d4470, horizon: 0xc98a58, fog: 0x584c40, near: 190, far: 720, sun: 0xffd08a, sunI: 1.3 },
+  storm: { zenith: 0x1b2836, horizon: 0x4a3b2c, fog: 0x2c2a30, near: 150, far: 520, sun: 0x93a4bd, sunI: 1.25 },
+  dusk:  { zenith: 0x2c4468, horizon: 0x7a6a70, fog: 0x4a4a58, near: 210, far: 700, sun: 0xffe9cc, sunI: 1.85 },
+  dawn:  { zenith: 0x3d78b4, horizon: 0xf0b478, fog: 0x8e8271, near: 270, far: 860, sun: 0xfff0c8, sunI: 2.2 },
 })
 
 // --- formatting helpers shared by HUD + 3D labels --------------------------

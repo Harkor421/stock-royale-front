@@ -75,9 +75,13 @@ source.onStatus((ok) => {
 })
 source.start()
 
-// --- the loop --------------------------------------------------------------
+// --- the loops -------------------------------------------------------------
+// TWO clocks on purpose. The 3D runs on requestAnimationFrame, which the
+// browser pauses whenever the tab is hidden or occluded. The HUD runs on a
+// timer instead, so a scoreboard left up on a second monitor — or in a
+// background tab — keeps showing live prices and a truthful round countdown
+// even while the battlefield is parked.
 const clock = new THREE.Clock()
-let hudAccum = 0
 let bannerAccum = 0
 let lastCountdownSec = -1
 let winnerShown = false
@@ -85,7 +89,6 @@ let winnerShown = false
 function frame() {
   const rawDt = Math.min(clock.getDelta(), 1 / 30)
   const dt = juice.getDt(rawDt, state)
-  const s = state.scalars
 
   step(state, dt)
 
@@ -102,16 +105,19 @@ function frame() {
 
   view.render()
 
-  hudAccum += rawDt
-  if (hudAccum >= CADENCE.hudMs / 1000) {
-    hudAccum = 0
-    hud.update(state)
-  }
   bannerAccum += rawDt
   if (bannerAccum >= CADENCE.bannerMs / 1000) {
     bannerAccum = 0
     banners.refresh(state)
   }
+
+  raf = requestAnimationFrame(frame)
+}
+let raf = requestAnimationFrame(frame)
+
+function hudTick() {
+  const s = state.scalars
+  hud.update(state)
 
   // the last ten seconds tick down audibly
   if (s.round && s.session?.live && s.winnerFx <= 0) {
@@ -129,21 +135,36 @@ function frame() {
     winnerShown = false
     hud.hideWinner()
   }
-
-  raf = requestAnimationFrame(frame)
 }
-let raf = requestAnimationFrame(frame)
+const hudTimer = setInterval(hudTick, CADENCE.hudMs)
 
 // A dev-only handle for poking at the world from the console (draw calls,
 // forcing a camera cut, inspecting state). Stripped from production builds.
 if (import.meta.env.DEV) {
-  window.__royale = { view, state, hud, cameraDirector, bus }
+  window.__royale = {
+    view, state, hud, cameraDirector, bus,
+    /** Advance the world by hand — the only way to inspect the 3D from a
+     *  headless/occluded tab, where requestAnimationFrame never fires. */
+    tick(frames = 1, dt = 1 / 60) {
+      for (let i = 0; i < frames; i++) {
+        step(state, dt)
+        armies.sync(state); vehicles.sync(state); planes.sync(state); effects.sync(state)
+        labels.update(dt); banners.update(state, dt); banners.refresh(state)
+        arena.update(state, dt); atmosphere.update(dt, state)
+        cameraDirector.update(dt); juice.update(dt, state)
+      }
+      view.render()
+      hudTick()
+      return 'ticked ' + frames
+    },
+  }
 }
 
 // --- HMR cleanup (dev) so hot reload doesn't leak GPU resources ---
 if (import.meta.hot) {
   import.meta.hot.dispose(() => {
     cancelAnimationFrame(raf)
+    clearInterval(hudTimer)
     source.stop()
     bus.clear()
     hud.dispose()

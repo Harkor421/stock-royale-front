@@ -78,10 +78,10 @@ render loop ──▶ simulator.step(state) ──▶ armies / vehicles / planes
 | `src/materials.js` | Every unit built in code and merged flat-shaded — no 3D assets |
 | `src/arena.js` | Ground, territory repaint, citadel, closing ring, walls, scenery |
 | `src/armies.js` · `vehicles.js` · `planes.js` · `effects.js` | GPU sync of instanced meshes + particles |
-| `src/banners.js` · `labels.js` | The 3D signs over each army and the floating price tags |
+| `src/banners.js` · `labels.js` | The 3D signs over each army (ticker, **live price**, round %) and the floating print tags |
 | `src/atmosphere.js` · `juice.js` | Pressure-driven sky, and game feel (shake, hit-stop, screen FX) |
 | `src/cameraDirector.js` | The broadcast camera: orbit, cut, victory lap, hands off when you drag |
-| `src/hud/` | The DOM overlay: standings, round clock, tape, past winners, the winner card |
+| `src/hud/` | The DOM overlay: standings with live prices, round clock, tape, past winners, the winner card |
 | `src/sources/backendSource.js` | The only data source — the backend's WebSocket |
 
 ### Inherited from The Trenches
@@ -94,3 +94,9 @@ Two rules kept the frame readable, and they're easy to break by accident:
 
 - **Bloom threshold sits above the lit ground.** Drop it and every sunlit vertex glows, which fogs the whole arena into milk. Only fire, tracers, fireworks and the ring should bloom.
 - **Full-screen washes are punches, not moods.** The victory flash is gone inside a second; the celebration then lives in the vignette and the fireworks. A 20%-alpha overlay held for nine seconds reads as a broken renderer, not as drama.
+
+## Two clocks
+
+The 3D runs on `requestAnimationFrame`; the HUD runs on a `setInterval`. That's deliberate. Browsers pause rAF whenever the tab is hidden or occluded — a scoreboard parked on a second monitor would freeze mid-round and quietly lie about the countdown. The DOM overlay is cheap, so it keeps its own timer and stays truthful; the battlefield picks up where it left off when the tab comes back.
+
+In dev, `window.__royale.tick(frames)` advances the world by hand — the only way to inspect the 3D from a headless or occluded tab, where rAF never fires.
