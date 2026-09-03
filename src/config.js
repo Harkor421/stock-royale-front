@@ -94,19 +94,20 @@ export function advanceToRadius(advance) {
 
 // --- print sizes -----------------------------------------------------------
 // These mirror the backend's THRESH so the client can classify locally too.
-export const THRESH = Object.freeze({ fish: 25_000, dolphin: 150_000, whale: 500_000 })
+// Calibrated against the real tape: a typical mega-cap print is $13K-$40K.
+export const THRESH = Object.freeze({ fish: 10_000, dolphin: 50_000, whale: 150_000 })
 /** A print this big earns a floating price tag above the line (blocks only —
  *  tagging every round lot buries the battlefield in numbers). */
-export const LABEL_USD = 150_000
+export const LABEL_USD = 50_000
 /** A print this big scrambles a bomber. */
-export const PLANE_USD = 100_000
+export const PLANE_USD = 55_000
 
 /** Pool caps — preallocation sizes. Nothing ever spawns past these. */
 export const CAPS = Object.freeze({
   SOLDIERS: 2000,
   FLAGS: 64,
-  TANKS: 56,
-  PLANES: 24,
+  TANKS: 110,
+  PLANES: 40,
   FIRE: 4200,
   DUST: 2600,
   TRACERS: 192,

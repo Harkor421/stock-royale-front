@@ -464,11 +464,12 @@ export function applyEvent(state, e) {
       if (e.notional >= PLANE_USD && army.planeCooldown <= 0) {
         // bombers fly for the buyer; sellers call the strike down on this army
         spawnPlane(state, army.index, buy ? 0 : 1, 1)
-        army.planeCooldown = 1.1
+        army.planeCooldown = 2.2
       }
 
       if (e.bucket === 'whale') {
         spawnVehicle(state, army.index, buy ? 0 : 1, 0)
+        army.vehicleCooldown = 0.8
         if (buy) spawnPlane(state, army.index, 0, 0)
         army.flash = 1.2
         s.shake = Math.min(0.55, 0.16 + e.notional / 4_000_000)
@@ -481,8 +482,9 @@ export function applyEvent(state, e) {
         explosion(state, _p.x, sampleHeight(_p.x, _p.z) + 1, _p.z,
           4 + Math.min(4, e.notional / 400_000), 60 + mag * 12)
         if (!buy) s.lightning = Math.max(s.lightning, 0.08)
-      } else if (e.bucket === 'dolphin') {
+      } else if (e.bucket === 'dolphin' && army.vehicleCooldown <= 0) {
         spawnVehicle(state, army.index, buy ? 0 : 1, 1)
+        army.vehicleCooldown = 1.3
       }
       break
     }
@@ -572,6 +574,7 @@ export function step(state, dt) {
     army.impulse *= Math.exp(-dt / TAU.impulse)
     army.activity *= Math.exp(-dt / 2.2)
     if (army.planeCooldown > 0) army.planeCooldown = Math.max(0, army.planeCooldown - dt)
+    if (army.vehicleCooldown > 0) army.vehicleCooldown = Math.max(0, army.vehicleCooldown - dt)
     if (army.flash > 0) army.flash = Math.max(0, army.flash - dt)
     if (army.pressure > 0.15) army.streak += dt
     else if (army.pressure < -0.05) army.streak = 0

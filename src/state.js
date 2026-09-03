@@ -62,6 +62,7 @@ function makeArmy(i, t) {
     activity: 0, //                recent print intensity -> clash embers
     streak: 0, //                  consecutive seconds of net buying
     planeCooldown: 0,
+    vehicleCooldown: 0, //         so one busy ticker can't drain the armour pool
     flash: 0, //                   seconds of highlight after a whale
     troops: 0, //                  live soldiers belonging to this army
     reinforce: 0, //               fractional carry of the reinforcement drip
