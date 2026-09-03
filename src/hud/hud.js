@@ -9,7 +9,11 @@
 import { ARMIES, fmtUsd, fmtPct, fmtPrice, fmtClock } from '../config.js'
 import './hud.css'
 
-const ROW_H = 46
+/** Row pitch, owned by hud.css (--row-h) so the phone breakpoint can change it
+ *  in one place without the JS that positions rows drifting out of agreement. */
+const rowPitch = () =>
+  parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--row-h')) || 46
+
 const el = (tag, cls, html) => {
   const n = document.createElement(tag)
   if (cls) n.className = cls
@@ -59,7 +63,13 @@ export function createHud(root) {
   const board = el('div', 'panel board')
   board.append(el('div', 'panel-title', '<span>Standings</span><span id="hud-round-label"></span>'))
   const lbRows = el('div', 'lb-rows')
+  let ROW_H = rowPitch()
   lbRows.style.height = ARMIES * ROW_H + 6 + 'px'
+  const onResize = () => {
+    ROW_H = rowPitch()
+    lbRows.style.height = ARMIES * ROW_H + 6 + 'px'
+  }
+  window.addEventListener('resize', onResize)
   board.append(lbRows)
   const roundLabel = board.querySelector('#hud-round-label')
 
@@ -309,6 +319,7 @@ export function createHud(root) {
     onSoundToggle,
     setSoundIcon,
     dispose() {
+      window.removeEventListener('resize', onResize)
       root.innerHTML = ''
       winner.remove()
       closed.remove()

@@ -17,6 +17,9 @@
   --gold: #ffd447;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --cond: 'Barlow Condensed', 'Oswald', system-ui, sans-serif;
+  /* Row pitch of the standings board. hud.js reads this to place the rows, so
+     the phone layout can shrink it in one place and keep JS and CSS agreeing. */
+  --row-h: 46px;
 }
 
 * { box-sizing: border-box; }
@@ -78,9 +81,10 @@ html, body {
 .top {
   grid-column: 1 / -1;
   display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
 .brand-mark {
   font-family: var(--cond); font-weight: 800; font-size: 26px; letter-spacing: 0.06em;
   line-height: 1; text-transform: uppercase;
@@ -143,7 +147,7 @@ html, body {
 .board { grid-column: 1; grid-row: 2; align-self: start; overflow: hidden; }
 .lb-rows { position: relative; padding: 6px; }
 .lb-row {
-  position: absolute; left: 6px; right: 6px; height: 44px;
+  position: absolute; left: 6px; right: 6px; height: calc(var(--row-h) - 2px);
   display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 8px;
   padding: 0 8px 0 6px; border-radius: 7px;
   background: rgba(255, 255, 255, 0.022);
@@ -250,10 +254,37 @@ html, body {
   .board { grid-column: 1; }
   .banner-wrap { grid-column: 1 / -1; }
 }
+
+/* Phones. The battlefield is the point, so the overlay gives ground: the
+   tagline goes, the clock keeps only its ring and countdown, and the board
+   tightens its row pitch instead of eating two thirds of the screen. */
 @media (max-width: 720px) {
-  #hud { padding: 8px; font-size: 11px; }
-  .brand-mark { font-size: 19px; }
+  :root { --row-h: 33px; }
+  #hud { padding: 7px; font-size: 11px; gap: 7px; }
+  .top { gap: 6px; align-items: center; }
+  .brand { gap: 6px; }
+  .brand-mark { font-size: 17px; }
+  .brand-sub { display: none; }
+  .pill { padding: 3px 7px; font-size: 8.5px; letter-spacing: 0.08em; }
+  .clock { padding: 5px 9px 5px 6px; gap: 8px; }
+  .clock-ring, .clock-ring svg { width: 40px; height: 40px; }
+  .clock-num { font-size: 11px; }
+  .clock-meta { display: none; }
+  .btn { width: 28px; height: 28px; font-size: 12px; }
   .feed { display: none; }
-  .board { max-width: 240px; }
-  .winner-sym { font-size: 64px; }
+  .board { max-width: 205px; }
+  .panel-title { padding: 6px 9px 5px; font-size: 10px; }
+  .lb-row { grid-template-columns: 14px 1fr auto; gap: 5px; padding: 0 6px 0 4px; }
+  .lb-rank { font-size: 12px; }
+  .lb-sym { font-size: 13px; }
+  .lb-price { font-size: 9.5px; }
+  .lb-pct { font-size: 11px; }
+  .lb-press { width: 34px; }
+  .banner { font-size: 17px; padding: 4px 12px; letter-spacing: 0.06em; }
+  .winner-card { padding: 20px 24px 22px; }
+  .winner-sym { font-size: 56px; }
+  .winner-pct { font-size: 22px; }
+  .winner-meta { font-size: 10px; }
+  .closed-title { font-size: 30px; }
+  .closed-card { padding: 22px 26px; }
 }
