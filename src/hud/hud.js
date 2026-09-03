@@ -27,7 +27,9 @@ export function createHud(root) {
     el('div', '', `<div class="brand-mark">Stock Royale</div><div class="brand-sub">8 tickers enter · one flag stands</div>`)
   )
   const sessionPill = el('div', 'pill', '<span class="dot"></span><span>CONNECTING…</span>')
-  brand.append(sessionPill)
+  const simPill = el('div', 'pill sim', '<span class="dot"></span><span>SIMULATED TAPE · PRICES ARE NOT REAL</span>')
+  simPill.hidden = true
+  brand.append(sessionPill, simPill)
 
   const clock = el('div', 'panel clock')
   clock.innerHTML = `
@@ -172,6 +174,8 @@ export function createHud(root) {
     }
 
     // -- session
+    simPill.hidden = !s.sim
+    if (s.sim && !document.title.startsWith('[SIM]')) document.title = '[SIM] ' + document.title
     const live = s.session?.live
     sessionPill.className = 'pill ' + (live ? 'live' : 'closed')
     sessionPill.lastChild.textContent = s.session?.label || '—'

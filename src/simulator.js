@@ -293,6 +293,7 @@ export function applyEvent(state, e) {
       s.round = e.round
       s.history = e.history || []
       s.serverSkewMs = (e.serverNow || e.ts || Date.now()) - Date.now()
+      s.sim = !!e.sim
       if (e.rows) e.rows.forEach((r) => applyRow(state, r))
       break
     }
