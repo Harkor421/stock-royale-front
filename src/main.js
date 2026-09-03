@@ -22,7 +22,6 @@ import { createPlanes } from './planes.js'
 import { createEffects } from './effects.js'
 import { createLabels } from './labels.js'
 import { createBanners } from './banners.js'
-import { createComic } from './comic.js'
 import { createConvoy } from './convoy.js'
 import { createAtmosphere } from './atmosphere.js'
 import { createJuice } from './juice.js'
@@ -32,6 +31,7 @@ import { createDirector } from './director.js'
 import { createHud } from './hud/hud.js'
 import { step } from './simulator.js'
 import { BackendSource } from './sources/backendSource.js'
+import { createLeaderboard } from './leaderboard.js'
 import * as logosModule from './logos.js'
 
 const canvas = document.getElementById('scene')
@@ -47,14 +47,13 @@ const planes = createPlanes(view.scene, assets)
 const effects = createEffects(view.scene, state, assets)
 const labels = createLabels(view.scene)
 const banners = createBanners(view.scene)
-const comic = createComic(view.scene)
 const convoy = createConvoy(view.scene, assets)
 const atmosphere = createAtmosphere(view.scene, view.sun, view.hemi, view.fog, view.sky)
 const juice = createJuice(view.camera)
 const audio = createAudio()
 const hud = createHud(document.getElementById('hud'))
 const cameraDirector = createCameraDirector(view.camera, view.controls, state)
-const director = createDirector(state, hud, labels, audio, cameraDirector, comic)
+const director = createDirector(state, hud, labels, audio, cameraDirector)
 
 // Sound is off until the viewer asks for it — browsers block audio before a
 // gesture, and an unmuted broadcast that autoplays is nobody's friend.
@@ -71,6 +70,24 @@ hud.onSoundToggle(toggleSound)
 window.addEventListener('keydown', (e) => {
   if (e.key === 'm' || e.key === 'M') toggleSound()
 })
+
+// ---- routing: /leaderboard is a real path, not a modal behind a hash ----
+const leaderboard = createLeaderboard({ onClose: () => go('/') })
+let onLeaderboard = false
+
+function route() {
+  onLeaderboard = location.pathname.replace(/\/+$/, '') === '/leaderboard'
+  if (onLeaderboard) leaderboard.show()
+  else leaderboard.hide()
+  document.getElementById('hud').style.visibility = onLeaderboard ? 'hidden' : ''
+}
+function go(path) {
+  if (location.pathname !== path) history.pushState({}, '', path)
+  route()
+}
+window.addEventListener('popstate', route)
+hud.onLeaderboard(() => go('/leaderboard'))
+route()
 
 bus.subscribe((e) => director.handle(e))
 
@@ -102,7 +119,6 @@ function frame() {
   planes.sync(state)
   effects.sync(state)
   labels.update(rawDt)
-  comic.update(rawDt)
   banners.update(state, rawDt)
   convoy.update(state, rawDt)
   arena.update(state, rawDt)
@@ -110,7 +126,8 @@ function frame() {
   cameraDirector.update(rawDt)
   juice.update(rawDt, state)
 
-  view.render()
+  // nothing to draw behind an opaque full-page view — don't burn the GPU on it
+  if (!onLeaderboard) view.render()
 
   bannerAccum += rawDt
   if (bannerAccum >= CADENCE.bannerMs / 1000) {
@@ -156,7 +173,7 @@ if (import.meta.env.DEV) {
       for (let i = 0; i < frames; i++) {
         step(state, dt)
         armies.sync(state); vehicles.sync(state); planes.sync(state); effects.sync(state)
-        labels.update(dt); comic.update(dt); banners.update(state, dt); banners.refresh(state); convoy.update(state, dt)
+        labels.update(dt); banners.update(state, dt); banners.refresh(state); convoy.update(state, dt)
         arena.update(state, dt); atmosphere.update(dt, state)
         cameraDirector.update(dt); juice.update(dt, state)
       }
@@ -175,6 +192,7 @@ if (import.meta.hot) {
     source.stop()
     bus.clear()
     hud.dispose()
+    leaderboard.dispose()
     juice.dispose()
     arena.dispose()
     armies.dispose()
@@ -182,7 +200,6 @@ if (import.meta.hot) {
     planes.dispose()
     effects.dispose()
     labels.dispose()
-    comic.dispose()
     convoy.dispose()
     banners.dispose()
     assets.dispose()

@@ -49,9 +49,13 @@ export function createHud(root) {
     <div class="cell kv" data-p="3"><span class="k">New York</span><span class="v et">--:--:--</span></div>
     <div class="cell flag link"><span class="dot"></span><span class="lbl">Link down</span></div>
     <div class="cell flag sim"><span class="dot"></span><span class="full">Simulated tape · not real prices</span><span class="short">Sim</span></div>`
+  const leadBtn = el('button', 'cell btn wide', 'Leaderboard')
+  leadBtn.title = 'Who has been paid'
+  const helpBtn = el('button', 'cell btn', '?')
+  helpBtn.title = 'How this works'
   const soundBtn = el('button', 'cell btn', '×')
   soundBtn.title = 'Sound (M)'
-  top.append(soundBtn)
+  top.append(leadBtn, helpBtn, soundBtn)
 
   const sessionV = top.querySelector('.sess')
   const clockCell = top.querySelector('.cell.round')
@@ -225,6 +229,40 @@ export function createHud(root) {
     clearTimeout(dropTimer)
     dropTimer = setTimeout(() => drop.classList.remove('show'), 12_000)
   }
+
+  // ---------------------------------------------------------- how it works
+  const help = el('div', 'help')
+  help.innerHTML = `
+    <div class="help-card">
+      <div class="winner-hd"><span>How this works</span><button class="help-close">Close</button></div>
+      <div class="help-body">
+        <b>Eight of the biggest US stocks fight a five-minute round.</b> Everything you see is
+        driven by real trades happening right now on the US market.
+        <ol>
+          <li>Each stock is an <b>army</b>, in its own colour. The truck driving behind its lines
+            flies its flag, so you always know whose troops are whose.</li>
+          <li>Everyone starts each round at <span class="key">0.00%</span>. Score is how much the
+            price has moved <b>since the round's clock started</b> — so a $150 stock and a $600
+            stock compete on even terms.</li>
+          <li><b>The closer an army is to the castle, the better its stock is doing.</b> That's the
+            whole map: distance to the middle is the scoreboard.</li>
+          <li>Whoever is <b>leading holds the castle</b> and defends it. The other seven attack it
+            from every direction.</li>
+          <li>Every real trade is troops: a <b>buy</b> marches reinforcements in, a <b>sell</b>
+            kills that army's own soldiers. Big trades bring <b>tanks and bombers</b>, which go
+            after a rival.</li>
+          <li>At the bell the stock that gained the most <b>wins the round</b> — it is bought on
+            Robinhood Chain and <b>airdropped to the coin's holders</b>, split by how much of the
+            supply each wallet holds. The more you hold, the bigger your cut.</li>
+        </ol>
+      </div>
+    </div>`
+  document.body.append(help)
+  help.querySelector('.help-close').addEventListener('click', () => help.classList.remove('show'))
+  help.addEventListener('click', (ev) => {
+    if (ev.target === help) help.classList.remove('show')
+  })
+  helpBtn.addEventListener('click', () => help.classList.add('show'))
 
   const closed = el('div', 'closed')
   closed.innerHTML = `
@@ -507,6 +545,7 @@ export function createHud(root) {
 
   // ------------------------------------------------------------------ misc
   const onSoundToggle = (fn) => soundBtn.addEventListener('click', fn)
+  const onLeaderboard = (fn) => leadBtn.addEventListener('click', fn)
   const setSoundIcon = (muted) => {
     soundBtn.textContent = muted ? '×' : '♪'
     soundBtn.style.color = muted ? '' : 'var(--amber)'
@@ -524,6 +563,7 @@ export function createHud(root) {
     airdropResult,
     airdropError,
     onSoundToggle,
+    onLeaderboard,
     setSoundIcon,
     dispose() {
       window.removeEventListener('resize', onResize)
@@ -531,6 +571,7 @@ export function createHud(root) {
       winner.remove()
       closed.remove()
       drop.remove()
+      help.remove()
       clearTimeout(bannerTimer)
       clearTimeout(dropTimer)
     },
