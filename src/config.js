@@ -8,19 +8,21 @@
 // camera angle without reading a single number.
 // ============================================================================
 
-/** How many armies share the ring. Must match the backend roster length. */
-export const ARMIES = 8
+/**
+ * How many armies share the ring. Must match the backend roster length, which
+ * is itself the set of stocks that have a WETH pool and can therefore actually
+ * be bought and paid out.
+ */
+export const ARMIES = 6
 
 /** Fallback roster — the real one (with colors) arrives in the backend `hello`. */
 export const FALLBACK_ROSTER = Object.freeze([
   { symbol: 'NVDA', name: 'Nvidia', color: '#76b900' },
   { symbol: 'TSLA', name: 'Tesla', color: '#e82127' },
   { symbol: 'AAPL', name: 'Apple', color: '#d8dbe2' },
-  { symbol: 'AMZN', name: 'Amazon', color: '#c46bff' },
   { symbol: 'META', name: 'Meta', color: '#2f7bff' },
-  { symbol: 'MSFT', name: 'Microsoft', color: '#00d4c8' },
-  { symbol: 'GOOGL', name: 'Alphabet', color: '#ffd447' },
   { symbol: 'AMD', name: 'AMD', color: '#ff7a00' },
+  { symbol: 'PLTR', name: 'Palantir', color: '#00d4c8' },
 ])
 
 export const ARENA = Object.freeze({
@@ -32,12 +34,14 @@ export const ARENA = Object.freeze({
   frontNear: 13, //   frontline radius of the round's leader (its troops on the hill itself)
   frontFar: 84, //    frontline radius of the round's laggard (backed onto the rim)
   /**
-   * Half-width of an army's lane. Deliberately WIDER than half a wedge
-   * (pi/8 = 0.393), so neighbouring armies overlap along their whole length
-   * instead of marching down parallel corridors that never touch. Contact
-   * everywhere is the difference between a battle royale and a parade.
+   * Half-width of an army's lane. Deliberately WIDER than half a wedge, so
+   * neighbouring armies overlap along their whole length instead of marching
+   * down parallel corridors that never touch — contact everywhere is the
+   * difference between a battle royale and a parade. Derived from the army
+   * count rather than hard-coded, or changing the roster size quietly pulls
+   * the lanes apart and the fighting stops.
    */
-  wedgeHalf: 0.48,
+  wedgeHalf: (Math.PI / ARMIES) * 1.22,
   clashBand: 3.2, //  radial distance from the front where soldiers stop and fight
   /**
    * The siege. Whoever leads the round GARRISONS the citadel — and garrisoning

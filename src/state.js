@@ -112,6 +112,14 @@ export function resetRound(state) {
 
 /** Rebuild the armies from a backend roster (symbols + colors). */
 export function setRoster(state, roster) {
+  // A roster of a different size than the arena was built for would silently
+  // render the wrong number of wedges, so it is refused loudly instead.
+  if (roster && roster.length !== ARMIES) {
+    console.error(
+      `[state] backend sent ${roster.length} tickers but the arena is built for ${ARMIES} — ` +
+        'keeping the fallback roster. Update ARMIES in config.js to match.'
+    )
+  }
   const list = roster && roster.length === ARMIES ? roster : FALLBACK_ROSTER
   state.armies = list.map((t, i) => makeArmy(i, t))
   state.bySymbol = new Map(state.armies.map((a) => [a.symbol, a]))

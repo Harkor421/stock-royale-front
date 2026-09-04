@@ -14,9 +14,9 @@ const SEEN_KEY = 'sr.onboarded.v1'
 const steps = (SR) => [
   {
     tag: 'The game',
-    title: 'Eight stocks. Five minutes. One hill.',
+    title: 'Six stocks. Five minutes. One hill.',
     body: `
-      <p>Eight of the biggest US stocks — <b>NVDA, TSLA, AAPL, AMZN, META, MSFT, GOOGL, AMD</b> —
+      <p>Six of the biggest US stocks — <b>NVDA, TSLA, AAPL, META, AMD, PLTR</b> —
       fight a five-minute round, over and over, all day.</p>
       <p>Nothing here is scripted. Every soldier, tank and explosion comes from a
       <b>real trade printing on the US market right now</b>.</p>`,
@@ -30,7 +30,7 @@ const steps = (SR) => [
       <b>since this round's clock started</b>, so a $150 stock and a $600 stock
       compete on even terms.</p>
       <p><b>The closer an army is to the castle, the better its stock is doing.</b>
-      Whoever leads <b>stands on the hill</b> and defends it. The other seven climb up
+      Whoever leads <b>stands on the hill</b> and defends it. The other five climb up
       and try to take it.</p>`,
   },
   {
