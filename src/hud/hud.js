@@ -199,13 +199,30 @@ export function createHud(root) {
   const dStage = (k) => drop.querySelector(`.stage[data-s="${k}"]`)
 
   let dropTimer = null
+  let dropWatchdog = null
   let dropRows = 0
   let dropExpected = 0
   let dropTicker = '—'
   let dropColor = 'var(--amber)'
   const closeDrop = () => {
     clearTimeout(dropTimer)
+    clearTimeout(dropWatchdog)
     drop.classList.remove('show')
+  }
+
+  // A chain call can hang, and a backend can restart mid-buy. Without this the
+  // panel sits on "buying…" forever and the viewer has no idea whether it is
+  // working or dead. Any progress resets it.
+  function armWatchdog(seconds = 90) {
+    clearTimeout(dropWatchdog)
+    dropWatchdog = setTimeout(() => {
+      const stalled = drop.querySelector('.stage.active')
+      if (!stalled) return
+      stalled.classList.remove('active')
+      stalled.classList.add('fail')
+      stalled.querySelector('em').innerHTML =
+        '<span style="color:var(--down)">no response — the backend may have restarted</span>'
+    }, seconds * 1000)
   }
   drop.querySelector('.drop-x').addEventListener('click', closeDrop)
   drop.addEventListener('click', (ev) => {
@@ -261,6 +278,7 @@ export function createHud(root) {
     dRows.innerHTML = '<div class="drop-empty">Waiting for the chain…</div>'
     dTotal.textContent = '—'
     drop.classList.add('show')
+    armWatchdog()
   }
 
   function airdropBuy(e) {
@@ -268,6 +286,7 @@ export function createHud(root) {
       `bought <b>${e.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${e.ticker}</b> ` +
       `for <b>${e.eth} ETH</b> ${txLink(e.txUrl, '↗')}`)
     setStage('send', 'active', '')
+    armWatchdog()
   }
 
   function airdropPayment(e) {
@@ -283,6 +302,7 @@ export function createHud(root) {
       `<span class="drop-tx">${txLink(e.txUrl, '↗ tx')}</span>`
     dRows.append(row)
     dCount.textContent = dropExpected ? `${dropRows} / ${dropExpected} sent` : `${dropRows} sent`
+    armWatchdog()
     if (dropExpected) dBar.style.width = Math.min(100, (dropRows / dropExpected) * 100) + '%'
     // follow the stream unless the viewer has scrolled up to read
     if (dRows.scrollTop + dRows.clientHeight > dRows.scrollHeight - 80) {
@@ -306,10 +326,38 @@ export function createHud(root) {
     dropTimer = setTimeout(closeDrop, 60_000)
   }
 
-  function airdropError(e) {
-    setStage('buy', 'fail', `<span style="color:var(--down)">${e.message}</span>`)
+  function airdropError(e, st) {
+    clearTimeout(dropWatchdog)
+    // A stock with no liquidity pool is not a failure mid-flight — nothing was
+    // ever spent — so it gets its own wording instead of a red error on a
+    // half-finished buy.
+    if (e.noPool) {
+      if (!drop.classList.contains('show')) {
+        dTitle.textContent = `Airdrop · round ${e.round?.label ?? ''} ET`
+        dFlags.innerHTML = ''
+        const col = st?.bySymbol.get(e.ticker)?.colorCss || 'var(--dim)'
+        dHeroChip.textContent = e.ticker
+        dHeroChip.style.setProperty('--c', col)
+        dSym.textContent = e.ticker
+        dSym.style.color = col
+        dTo.textContent = '— round not paid out'
+        dChain.textContent = ''
+        dBar.style.width = '0%'
+        dCount.textContent = ''
+        dTotal.textContent = '—'
+        drop.classList.add('show')
+      }
+      setStage('buy', 'fail', `<span style="color:var(--down)">no liquidity pool for ${e.ticker}</span>`)
+      setStage('send', '', '')
+      setStage('done', '', '')
+      dRows.innerHTML =
+        `<div class="drop-empty">${e.ticker} has no WETH pool on Robinhood Chain, so it cannot be bought.` +
+        `<br>Nothing was spent. The next round starts in a moment.</div>`
+    } else {
+      setStage('buy', 'fail', `<span style="color:var(--down)">${e.message}</span>`)
+    }
     clearTimeout(dropTimer)
-    dropTimer = setTimeout(closeDrop, 20_000)
+    dropTimer = setTimeout(closeDrop, 25_000)
   }
 
   // The explainer lives in onboarding.js; the "?" opens it.
