@@ -9,7 +9,7 @@
 // so a rank change slides instead of repainting.
 // ============================================================================
 
-import { ARMIES, fmtUsd, fmtPct, fmtPrice, fmtClock } from '../config.js'
+import { ARMIES, fmtUsd, fmtUsdExact, fmtPct, fmtPrice, fmtClock } from '../config.js'
 import './hud.css'
 
 /** Row pitch, owned by hud.css (--row-h) so the phone breakpoint can change it
@@ -104,7 +104,19 @@ export function createHud(root) {
   const tapeTrack = el('div', 'tape-track')
   tape.append(tapeTrack)
 
+  // ---------------------------------------------------------------- the pot
+  // The number everyone actually wants: how much money is sitting in the pot,
+  // and how much of it goes out at the next bell. Centre of the screen, big,
+  // because it is the reason to care who wins.
   const bannerWrap = el('div', 'banner-wrap')
+  const potBox = el('div', 'pot')
+  potBox.innerHTML = `
+    <div class="pot-k">The pot</div>
+    <div class="pot-v">—</div>
+    <div class="pot-sub">waiting for the backend</div>`
+  bannerWrap.append(potBox)
+  const potV = potBox.querySelector('.pot-v')
+  const potSub = potBox.querySelector('.pot-sub')
 
   root.append(top, board, bannerWrap, blotter, fame, tape)
 
@@ -233,7 +245,9 @@ export function createHud(root) {
     dHeroChip.style.setProperty('--c', dropColor)
     dSym.textContent = e.ticker
     dSym.style.color = dropColor
-    dTo.textContent = `→ ${(e.holders || 0).toLocaleString()} holders`
+    const budget = e.budgetUsd ?? st.scalars.pot?.nextDropUsd ?? null
+    dTo.textContent =
+      `→ ${(e.holders || 0).toLocaleString()} holders` + (budget != null ? ` · ${fmtUsdExact(budget)} of stock` : '')
     dChain.innerHTML = e.token
       ? `holders of ${txLink(`${e.explorer}/token/${e.token}`, shortAddr(e.token))} · paid pro-rata by how much of the supply each wallet holds`
       : 'paid pro-rata by how much of the supply each wallet holds'
@@ -284,7 +298,7 @@ export function createHud(root) {
       chip(e.ticker, dropColor) +
       ` <b>${e.totalSent.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${e.ticker}</b> ` +
       `to <b>${e.count.toLocaleString()}</b> holders` +
-      (e.totalUsd ? ` · <span class="drop-usd">${fmtUsd(e.totalUsd)}</span>` : '')
+      (e.totalUsd ? ` · <span class="drop-usd">${fmtUsdExact(e.totalUsd)}</span>` : '')
     if (!dropRows) dRows.innerHTML = '<div class="drop-empty">Nobody was eligible this round.</div>'
     clearTimeout(dropTimer)
     // long enough to actually read; the ✕ closes it sooner
@@ -524,6 +538,21 @@ export function createHud(root) {
       closed.classList.remove('show')
     }
 
+    // -- the pot
+    const pot = s.pot
+    if (pot?.ready) {
+      potBox.classList.remove('idle')
+      potV.textContent = pot.usd != null ? fmtUsdExact(pot.usd) : `${pot.eth.toFixed(4)} ETH`
+      const drop = pot.nextDropUsd != null ? fmtUsdExact(pot.nextDropUsd) : `${pot.nextDropEth.toFixed(4)} ETH`
+      potSub.innerHTML =
+        `next drop <b>${drop}</b> of stock · ${pot.eth.toFixed(4)} ETH in the wallet` +
+        (pot.dryRun ? ' <span class="pot-dry">dry run</span>' : '')
+    } else {
+      potBox.classList.add('idle')
+      potV.textContent = '—'
+      potSub.textContent = pot?.reason || 'the airdrop wallet is not set up yet'
+    }
+
     // -- past winners
     const hist = s.history || []
     const sig = hist.map((h) => h.round?.id + ':' + (h.winner?.symbol || '-')).join('|')
@@ -570,7 +599,7 @@ export function createHud(root) {
       b.style.color = color
       b.style.borderLeftColor = color
     }
-    bannerWrap.innerHTML = ''
+    bannerWrap.querySelectorAll('.banner').forEach((n) => n.remove())
     bannerWrap.append(b)
     clearTimeout(bannerTimer)
     bannerTimer = setTimeout(() => {
