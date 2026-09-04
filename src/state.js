@@ -139,6 +139,7 @@ export function createState() {
       connected: false,
       sim: false, //         the backend is running a SYNTHETIC tape, not the market
       pot: null, //          what the distributor wallet holds, and what the next drop is worth
+      airdrop: null, //      distributor status, incl. the coin's ticker for the copy
 
       history: [], //        past winners, newest first
 

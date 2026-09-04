@@ -32,6 +32,7 @@ import { createHud } from './hud/hud.js'
 import { step } from './simulator.js'
 import { BackendSource } from './sources/backendSource.js'
 import { createLeaderboard } from './leaderboard.js'
+import { createOnboarding } from './onboarding.js'
 import * as logosModule from './logos.js'
 
 const canvas = document.getElementById('scene')
@@ -87,7 +88,17 @@ function go(path) {
 }
 window.addEventListener('popstate', route)
 hud.onLeaderboard(() => go('/leaderboard'))
+
+// The explainer. Shown once on a first visit — the battlefield is legible only
+// once you know that distance to the castle IS the scoreboard, and the reason
+// to care (holding the coin pays you real stock) is invisible until a round
+// ends. The "?" reopens it any time.
+const onboarding = createOnboarding({
+  getSymbol: () => state.scalars.airdrop?.tokenSymbol || null,
+})
+hud.onHelp(() => onboarding.open())
 route()
+if (!onLeaderboard) onboarding.openIfFirstVisit()
 
 bus.subscribe((e) => director.handle(e))
 
@@ -193,6 +204,7 @@ if (import.meta.hot) {
     bus.clear()
     hud.dispose()
     leaderboard.dispose()
+    onboarding.dispose()
     juice.dispose()
     arena.dispose()
     armies.dispose()

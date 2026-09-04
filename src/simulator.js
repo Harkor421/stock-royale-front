@@ -510,6 +510,7 @@ export function applyEvent(state, e) {
       s.serverSkewMs = (e.serverNow || e.ts || Date.now()) - Date.now()
       s.sim = !!e.sim
       if (e.pot) s.pot = e.pot
+      if (e.airdrop) s.airdrop = e.airdrop
       if (e.rows) e.rows.forEach((r) => applyRow(state, r))
       break
     }
