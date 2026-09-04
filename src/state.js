@@ -13,7 +13,9 @@
 // are cartesian — they drive and fly in straight lines.
 // ============================================================================
 
-import { CAPS, ARMIES, ARENA, wedgeAngle, advanceToRadius, FALLBACK_ROSTER } from './config.js'
+import { CAPS, ARMIES, ARENA, GRID, wedgeAngle, advanceToRadius, FALLBACK_ROSTER } from './config.js'
+
+const GRID_CELLS = GRID.n * GRID.n
 
 // A freelist is a stack of free indices: pop = spawn, push = despawn. When it
 // runs dry, spawns are simply dropped — which is also what bounds the world if
@@ -77,6 +79,7 @@ export function resetRound(state) {
     const p = state[key]
     p.active.fill(0)
     if ('size' in p) p.size.fill(0)
+    if ('foe' in p) p.foe.fill(-1)
     resetFreelist(p.fl)
     if ('count' in p) p.count = 0
   }
@@ -171,6 +174,16 @@ export function createState() {
       flag: new Uint8Array(S),
       timer: new Float32Array(S),
       active: new Uint8Array(S),
+      // --- melee: who this soldier is actually fighting ---
+      foe: new Int32Array(S), //      index of its current enemy, -1 for none
+      foeTimer: new Float32Array(S), // seconds until it looks for a better one
+      face: new Float32Array(S), //   heading, written by the simulator
+      // A uniform grid over the arena, rebuilt every frame, so a soldier can
+      // find the nearest enemy by looking in nine cells instead of scanning all
+      // two thousand of them. head/next are a linked list per cell — no
+      // allocation, no sorting.
+      gridHead: new Int32Array(GRID_CELLS),
+      gridNext: new Int32Array(S),
       countBull: 0,
       countBear: 0,
       fl: makeFreelist(S),
