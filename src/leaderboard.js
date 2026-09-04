@@ -36,8 +36,10 @@ export function createLeaderboard({ onClose, explorer = 'https://robinhoodchain.
       </div>
       <div class="lead-explain">
         Every <b>5 minutes</b> the stock that gained the most is <b>bought on Robinhood Chain</b>
-        and <b>airdropped to the holders</b> of the coin, split by how much of the supply each
-        wallet holds. <b>The more you hold, the bigger your cut.</b> This is every payout so far.
+        and <b>airdropped to everyone holding <span class="sr-tag">$SR</span></b>, split by how much
+        of the supply each wallet holds. <b>Hold 2% of $SR, get 2% of the drop.</b>
+        Pools, curves and contracts are excluded — only real wallets are paid.
+        This is every payout so far.
       </div>
       <div class="lead-totals"></div>
       <div class="cols lead-cols">

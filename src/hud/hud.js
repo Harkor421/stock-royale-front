@@ -249,8 +249,9 @@ export function createHud(root) {
     dTo.textContent =
       `→ ${(e.holders || 0).toLocaleString()} holders` + (budget != null ? ` · ${fmtUsdExact(budget)} of stock` : '')
     dChain.innerHTML = e.token
-      ? `holders of ${txLink(`${e.explorer}/token/${e.token}`, shortAddr(e.token))} · paid pro-rata by how much of the supply each wallet holds`
-      : 'paid pro-rata by how much of the supply each wallet holds'
+      ? `to holders of ${txLink(`${e.explorer}/token/${e.token}`, e.tokenSymbol ? '$' + e.tokenSymbol : shortAddr(e.token))}` +
+        ' · each wallet gets its share of the supply · pools, curves and contracts excluded'
+      : 'each wallet gets its share of the supply · pools, curves and contracts excluded'
 
     setStage('buy', 'active', 'on Robinhood Chain…')
     setStage('send', '', '')
@@ -311,39 +312,7 @@ export function createHud(root) {
     dropTimer = setTimeout(closeDrop, 20_000)
   }
 
-  // ---------------------------------------------------------- how it works
-  const help = el('div', 'help')
-  help.innerHTML = `
-    <div class="help-card">
-      <div class="winner-hd"><span>How this works</span><button class="help-close">Close</button></div>
-      <div class="help-body">
-        <b>Eight of the biggest US stocks fight a five-minute round.</b> Everything you see is
-        driven by real trades happening right now on the US market.
-        <ol>
-          <li>Each stock is an <b>army</b>, in its own colour. The truck driving behind its lines
-            flies its flag, so you always know whose troops are whose.</li>
-          <li>Everyone starts each round at <span class="key">0.00%</span>. Score is how much the
-            price has moved <b>since the round's clock started</b> — so a $150 stock and a $600
-            stock compete on even terms.</li>
-          <li><b>The closer an army is to the castle, the better its stock is doing.</b> That's the
-            whole map: distance to the middle is the scoreboard.</li>
-          <li>Whoever is <b>leading holds the castle</b> and defends it. The other seven attack it
-            from every direction.</li>
-          <li>Every real trade is troops: a <b>buy</b> marches reinforcements in, a <b>sell</b>
-            kills that army's own soldiers. Big trades bring <b>tanks and bombers</b>, which go
-            after a rival.</li>
-          <li>At the bell the stock that gained the most <b>wins the round</b> — it is bought on
-            Robinhood Chain and <b>airdropped to the coin's holders</b>, split by how much of the
-            supply each wallet holds. The more you hold, the bigger your cut.</li>
-        </ol>
-      </div>
-    </div>`
-  document.body.append(help)
-  help.querySelector('.help-close').addEventListener('click', () => help.classList.remove('show'))
-  help.addEventListener('click', (ev) => {
-    if (ev.target === help) help.classList.remove('show')
-  })
-  helpBtn.addEventListener('click', () => help.classList.add('show'))
+  // The explainer lives in onboarding.js; the "?" opens it.
 
   const closed = el('div', 'closed')
   closed.innerHTML = `
@@ -641,6 +610,7 @@ export function createHud(root) {
 
   // ------------------------------------------------------------------ misc
   const onSoundToggle = (fn) => soundBtn.addEventListener('click', fn)
+  const onHelp = (fn) => helpBtn.addEventListener('click', fn)
   const onLeaderboard = (fn) => {
     leadBtn.addEventListener('click', fn)
     drop.querySelector('.drop-lead').addEventListener('click', () => {
@@ -666,6 +636,7 @@ export function createHud(root) {
     airdropError,
     onSoundToggle,
     onLeaderboard,
+    onHelp,
     setSoundIcon,
     dispose() {
       window.removeEventListener('resize', onResize)
@@ -673,7 +644,6 @@ export function createHud(root) {
       winner.remove()
       closed.remove()
       drop.remove()
-      help.remove()
       clearTimeout(bannerTimer)
       clearTimeout(dropTimer)
     },
