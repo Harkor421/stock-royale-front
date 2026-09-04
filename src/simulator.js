@@ -792,7 +792,7 @@ export function step(state, dt) {
         const step = (MELEE.chase * dt) / d
         const nx = x + dx * step
         const nz = z + dz * step
-        so.r[i] = Math.max(ARENA.hillR - 3, Math.min(ARENA.rim, Math.hypot(nx, nz)))
+        so.r[i] = Math.max(ARENA.hillCore, Math.min(ARENA.rim, Math.hypot(nx, nz)))
         so.a[i] = Math.atan2(nz, nx)
       } else {
         // in reach: shoot him, and one of the two goes down
@@ -815,8 +815,11 @@ export function step(state, dt) {
       }
     } else {
       // -- nobody to fight: take up position --
+      // The garrison fans out ACROSS the hilltop rather than forming one ring
+      // on it, so a winning army visibly occupies the ground instead of
+      // outlining it. Besiegers stack up on the skirt below the wall.
       const holdR = defending
-        ? ARENA.garrisonR + (i % 5) * 0.9
+        ? ARENA.garrisonR + ((i * 7) % 11) * (ARENA.garrisonSpread / 11)
         : Math.max(army.front, ARENA.assaultR + (i % 7) * 0.7)
       const arrived = so.r[i] <= holdR + ARENA.clashBand
 
@@ -836,7 +839,7 @@ export function step(state, dt) {
           if (off > slack) so.a[i] -= (off - slack) * grip * 3 * dt
           else if (off < -slack) so.a[i] -= (off + slack) * grip * 3 * dt
         }
-        if (so.r[i] < ARENA.hillR - 3) so.r[i] = ARENA.hillR - 3
+        if (so.r[i] < ARENA.hillCore) so.r[i] = ARENA.hillCore
         else if (so.r[i] > ARENA.rim) so.r[i] = ARENA.rim
         so.face[i] = Math.atan2(-Math.cos(so.a[i]), -Math.sin(so.a[i]))
       } else {

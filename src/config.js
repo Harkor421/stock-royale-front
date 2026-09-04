@@ -14,13 +14,13 @@ export const ARMIES = 8
 /** Fallback roster — the real one (with colors) arrives in the backend `hello`. */
 export const FALLBACK_ROSTER = Object.freeze([
   { symbol: 'NVDA', name: 'Nvidia', color: '#76b900' },
-  { symbol: 'TSLA', name: 'Tesla', color: '#ff6b3d' },
+  { symbol: 'TSLA', name: 'Tesla', color: '#e82127' },
   { symbol: 'AAPL', name: 'Apple', color: '#d8dbe2' },
-  { symbol: 'AMZN', name: 'Amazon', color: '#ff9f1c' },
+  { symbol: 'AMZN', name: 'Amazon', color: '#c46bff' },
   { symbol: 'META', name: 'Meta', color: '#2f7bff' },
   { symbol: 'MSFT', name: 'Microsoft', color: '#00d4c8' },
   { symbol: 'GOOGL', name: 'Alphabet', color: '#ffd447' },
-  { symbol: 'AMD', name: 'AMD', color: '#c46bff' },
+  { symbol: 'AMD', name: 'AMD', color: '#ff7a00' },
 ])
 
 export const ARENA = Object.freeze({
@@ -29,7 +29,7 @@ export const ARENA = Object.freeze({
   hillR: 13, //       flat top of the citadel
   hillSlope: 11, //   the mesa's skirt: flat top ends at hillR, ground at hillR+hillSlope
   hillH: 7.5, //      how high the objective stands
-  frontNear: 17, //   frontline radius of the round's leader (troops onto the slope)
+  frontNear: 13, //   frontline radius of the round's leader (its troops on the hill itself)
   frontFar: 84, //    frontline radius of the round's laggard (backed onto the rim)
   /**
    * Half-width of an army's lane. Deliberately WIDER than half a wedge
@@ -40,14 +40,20 @@ export const ARENA = Object.freeze({
   wedgeHalf: 0.48,
   clashBand: 3.2, //  radial distance from the front where soldiers stop and fight
   /**
-   * The siege. Whoever leads the round GARRISONS the citadel — its troops ring
-   * the hill at garrisonR and face outward. Everyone else is a besieger: they
-   * close to assaultR and fight the garrison from every direction at once.
-   * An attacking army only gets there if its frontline has advanced that far,
+   * The siege. Whoever leads the round GARRISONS the citadel — and garrisoning
+   * it means standing ON it: the leader's troops spread across the mesa itself,
+   * inside the merlon ring, raised on the high ground. Everyone else climbs the
+   * skirt to assaultR, right under the wall, and fights them from every
+   * direction at once. Read from any camera angle it is unmistakable — one army
+   * is holding the hill and seven are trying to take it.
+   *
+   * An attacking army only gets that far if its frontline has advanced there,
    * so a ticker having a bad round is still stuck out in the open.
    */
-  garrisonR: 16,
-  assaultR: 19, // presses right onto the garrison ring, not a polite ring outside it
+  garrisonR: 2.5, //  innermost rank of the garrison; they fan out from here
+  garrisonSpread: 8.2, // ...to here, which stops just inside the merlons
+  assaultR: 14.5, //  the besiegers' line: on the skirt, at the foot of the wall
+  hillCore: 1.4, //   nothing gets closer than this, or they pile into the flagpole
   meleeR: 46,
   amp: 1.5, //        terrain noise amplitude
   segTheta: 144, //   ground disc resolution
@@ -183,7 +189,7 @@ export const CADENCE = Object.freeze({
 // Army colors are NOT here: they arrive from the backend roster.
 // ---------------------------------------------------------------------------
 export const COLORS = Object.freeze({
-  bear: 0x8b0e18, //      the sell horde — deliberately darker than every army color
+  bear: 0x6b2430, //      the sell horde — greyed and darkened so it never reads as TSLA's red
   bearTank: 0x5e0910,
   gold: 0xffc53d,
   ground: 0x4a5c42,
