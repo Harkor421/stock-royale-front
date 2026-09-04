@@ -77,7 +77,7 @@ export function createDirector(state, hud, labels, audio, cameraDirector) {
         audio.grad()
         break
       case 'airdropError':
-        hud.airdropError(e)
+        hud.airdropError(e, state)
         break
 
       case 'session': {
