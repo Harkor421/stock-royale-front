@@ -31,7 +31,13 @@ export const ARENA = Object.freeze({
   hillH: 7.5, //      how high the objective stands
   frontNear: 17, //   frontline radius of the round's leader (troops onto the slope)
   frontFar: 84, //    frontline radius of the round's laggard (backed onto the rim)
-  wedgeHalf: 0.36, // half-width of an army's lane in radians, where it still holds
+  /**
+   * Half-width of an army's lane. Deliberately WIDER than half a wedge
+   * (pi/8 = 0.393), so neighbouring armies overlap along their whole length
+   * instead of marching down parallel corridors that never touch. Contact
+   * everywhere is the difference between a battle royale and a parade.
+   */
+  wedgeHalf: 0.48,
   clashBand: 3.2, //  radial distance from the front where soldiers stop and fight
   /**
    * The siege. Whoever leads the round GARRISONS the citadel — its troops ring
@@ -41,11 +47,33 @@ export const ARENA = Object.freeze({
    * so a ticker having a bad round is still stuck out in the open.
    */
   garrisonR: 16,
-  assaultR: 23,
+  assaultR: 19, // presses right onto the garrison ring, not a polite ring outside it
   meleeR: 46,
   amp: 1.5, //        terrain noise amplitude
   segTheta: 144, //   ground disc resolution
   segR: 52,
+})
+
+/**
+ * The combat grid. Soldiers are binned into GRID.n x GRID.n cells over the
+ * arena so each one can find its nearest enemy by looking at nine cells. Cell
+ * size is a little larger than the range at which a soldier will pick a fight,
+ * which is what keeps the nine-cell lookup correct.
+ */
+export const GRID = Object.freeze({
+  n: 40,
+  get size() {
+    return (ARENA.rim * 2.2) / this.n
+  },
+  half: ARENA.rim * 1.1,
+})
+
+/** How a soldier picks and fights an enemy. */
+export const MELEE = Object.freeze({
+  seek: 16, //     will break formation for an enemy this close
+  strike: 2.6, //  close enough to kill
+  retarget: 0.45, // seconds between looking for a better enemy
+  chase: 4.4, //   speed while closing on one
 })
 
 /** Angle of army i's lane centre. Army 0 sits at the top of the screen. */

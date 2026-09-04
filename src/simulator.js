@@ -10,7 +10,7 @@
 // ============================================================================
 
 import {
-  ARENA, TAU, CAPS, COLORS, ARMIES, PLANE_USD,
+  ARENA, TAU, CAPS, COLORS, ARMIES, PLANE_USD, GRID, MELEE,
   sampleHeight, advanceToRadius, polar,
 } from './config.js'
 import { alloc, free, resetRound, setRoster } from './state.js'
@@ -216,6 +216,66 @@ function cullSoldiers(s, armyIdx, n) {
   return killed
 }
 
+// ---------------------------------------------------------------------------
+// MELEE — soldiers fight each other, one on one.
+//
+// Every frame the whole army is binned into a uniform grid; each soldier then
+// looks in its own cell and the eight around it for the nearest man wearing
+// another ticker's colours, and goes for him. That is the difference between
+// eight formations standing in rings shooting outward and something that reads
+// as a battle royale: the killing is between individuals, and you can follow
+// any one of them.
+// ---------------------------------------------------------------------------
+
+const gridIndex = (x, z) => {
+  const gx = Math.min(GRID.n - 1, Math.max(0, ((x + GRID.half) / GRID.size) | 0))
+  const gz = Math.min(GRID.n - 1, Math.max(0, ((z + GRID.half) / GRID.size) | 0))
+  return gz * GRID.n + gx
+}
+
+/** Rebuild the spatial index. O(n), no allocation. */
+function rebuildGrid(state) {
+  const so = state.soldiers
+  so.gridHead.fill(-1)
+  for (let i = 0; i < so.r.length; i++) {
+    if (!so.active[i] || so.st[i] === 2) continue
+    const x = Math.cos(so.a[i]) * so.r[i]
+    const z = Math.sin(so.a[i]) * so.r[i]
+    const cell = gridIndex(x, z)
+    so.gridNext[i] = so.gridHead[cell]
+    so.gridHead[cell] = i
+  }
+}
+
+/** Nearest living soldier of a different army, within MELEE.seek. */
+function findFoe(state, i, x, z) {
+  const so = state.soldiers
+  const myArmy = so.army[i]
+  const gx = Math.min(GRID.n - 1, Math.max(0, ((x + GRID.half) / GRID.size) | 0))
+  const gz = Math.min(GRID.n - 1, Math.max(0, ((z + GRID.half) / GRID.size) | 0))
+  let best = -1
+  let bestD2 = MELEE.seek * MELEE.seek
+  for (let dz = -1; dz <= 1; dz++) {
+    const cz = gz + dz
+    if (cz < 0 || cz >= GRID.n) continue
+    for (let dx = -1; dx <= 1; dx++) {
+      const cx = gx + dx
+      if (cx < 0 || cx >= GRID.n) continue
+      for (let j = so.gridHead[cz * GRID.n + cx]; j !== -1; j = so.gridNext[j]) {
+        if (j === i || so.army[j] === myArmy || so.st[j] === 2) continue
+        const jx = Math.cos(so.a[j]) * so.r[j] - x
+        const jz = Math.sin(so.a[j]) * so.r[j] - z
+        const d2 = jx * jx + jz * jz
+        if (d2 < bestD2) {
+          bestD2 = d2
+          best = j
+        }
+      }
+    }
+  }
+  return best
+}
+
 function spawnSoldier(s, army, side, r, a, flag) {
   const i = alloc(s.soldiers.fl)
   if (i < 0) return
@@ -230,9 +290,33 @@ function spawnSoldier(s, army, side, r, a, flag) {
   so.st[i] = 0
   so.flag[i] = flag ? 1 : 0
   so.timer[i] = 0
+  // A recycled slot carries the previous occupant's enemy and heading. Clear
+  // them, or a fresh recruit spawns already aiming at a stranger.
+  so.foe[i] = -1
+  so.foeTimer[i] = Math.random() * MELEE.retarget
+  so.face[i] = Math.atan2(-Math.cos(a), -Math.sin(a))
   so.active[i] = 1
   if (side === 0) so.countBull++
   else so.countBear++
+  // The reinforcement drip sizes itself off this. Without it the deficit never
+  // closes and the pool fills to its cap with nothing left to spawn.
+  s.armies[army].troops++
+}
+
+/** Drop a soldier: a puff, a body, and a slot freed a third of a second later. */
+function killSoldier(s, i) {
+  const so = s.soldiers
+  if (!so.active[i] || so.st[i] === 2) return
+  so.st[i] = 2
+  so.timer[i] = 0.35
+  so.foe[i] = -1
+  polar(so.r[i], so.a[i], _p)
+  const hy = sampleHeight(_p.x, _p.z) + 0.5
+  for (let k = 0; k < 5; k++) {
+    spawnFire(s, _p.x, hy, _p.z, (Math.random() - 0.5) * 3, 1 + Math.random() * 2,
+      (Math.random() - 0.5) * 3, 0.4 + Math.random() * 0.4, 0.3, FIRE_STOPS[1])
+  }
+  spawnDust(s, _p.x, hy, _p.z, 0, 0.6, 0, 1.2, 0.7, 1, DUSTC)
 }
 
 function freeSoldier(s, i) {
@@ -661,98 +745,117 @@ export function step(state, dt) {
   }
 
   // ---- soldiers ----
-  // Two roles, decided by one number: the army leading the round holds the
-  // citadel, everybody else is trying to take it off them. Roles flip the
-  // instant the hill changes hands, so a lead change visibly turns the map
-  // inside out.
+  // Two things are happening at once. At the scale of the map, the army leading
+  // the round garrisons the citadel and the other seven march on it. At the
+  // scale of a man, everyone picks the nearest enemy and tries to kill him.
+  // The second is what makes it a battle royale rather than eight parades.
+  rebuildGrid(state)
+
   const so = state.soldiers
   const leaderIdx = s.leader
   for (let i = 0; i < so.r.length; i++) {
     if (!so.active[i]) continue
-    const army = state.armies[so.army[i]]
-    const defending = so.army[i] === leaderIdx
-    // where this soldier is trying to stand
-    const holdR = defending
-      ? ARENA.garrisonR + (i % 5) * 0.9
-      : Math.max(army.front, ARENA.assaultR + (i % 7) * 0.7)
-    const st = so.st[i]
 
-    if (st === 0) {
-      so.phase[i] += dt * 12
-      const speed = (so.side[i] === 1 ? 2.5 : 3.3) + (i % 5) * 0.16
-      so.r[i] -= speed * dt
-      so.a[i] += (so.weave[i] * Math.sin(so.phase[i] * 0.5) * dt) / Math.max(6, so.r[i])
-
-      // Lane discipline dissolves as they close: far out a soldier keeps to his
-      // army's heading, at the walls there is no heading left and the columns
-      // fold into one press of bodies around the hill.
-      const grip = Math.max(0, (so.r[i] - ARENA.assaultR) / (ARENA.rim - ARENA.assaultR))
-      if (grip > 0) {
-        let off = so.a[i] - army.angle
-        while (off > Math.PI) off -= Math.PI * 2
-        while (off < -Math.PI) off += Math.PI * 2
-        const slack = ARENA.wedgeHalf * (1 + (1 - grip) * 2.4)
-        if (off > slack) so.a[i] -= (off - slack) * grip * 3 * dt
-        else if (off < -slack) so.a[i] -= (off + slack) * grip * 3 * dt
-      }
-
-      if (so.r[i] < ARENA.hillR - 3) so.r[i] = ARENA.hillR - 3
-      else if (so.r[i] > ARENA.rim) so.r[i] = ARENA.rim
-      if (so.r[i] <= holdR + ARENA.clashBand) {
-        so.st[i] = 1
-        so.timer[i] = 0
-      }
-    } else if (st === 1) {
-      so.phase[i] += dt * 7
-      // hold the line: drift back to your post and jostle along it
-      so.r[i] += (holdR - so.r[i]) * Math.min(1, dt * 1.6)
-      const jostle = defending ? 1.1 : 2.0
-      so.a[i] += ((Math.random() - 0.5) * jostle * dt) / Math.max(6, so.r[i])
-      so.timer[i] += dt
-
-      if (Math.random() < dt * 5) {
-        polar(so.r[i], so.a[i], _p)
-        // defenders shoot outward at the assault, attackers shoot in at the hill
-        const f = defending ? 1 : -1
-        const dx = Math.cos(so.a[i]) * f
-        const dz = Math.sin(so.a[i]) * f
-        const my = sampleHeight(_p.x, _p.z) + 0.58
-        spawnFire(state, _p.x + dx * 0.35, my, _p.z + dz * 0.35,
-          dx * 2, 0.6 + Math.random(), dz * 2, 0.32, 0.08, MUZZLE)
-        spawnFire(state, _p.x + dx * 0.35, my, _p.z + dz * 0.35,
-          dx * (20 + Math.random() * 8) + (Math.random() - 0.5) * 3,
-          (Math.random() - 0.5) * 1.5,
-          dz * (20 + Math.random() * 8) + (Math.random() - 0.5) * 3,
-          0.16, 0.16 + Math.random() * 0.08, MUZZLE)
-      }
-
-      // The garrison is outnumbered seven to one, so it takes steady losses and
-      // is constantly replaced — that churn is what makes the hill look held
-      // rather than decorated. Besiegers die by how badly their ticker is doing.
-      let deathP
-      if (defending) {
-        deathP = 0.4
-      } else if (so.r[i] <= ARENA.assaultR + ARENA.clashBand + 2) {
-        deathP = 0.22 + (1 - army.advance) * 1.3
-      } else {
-        deathP = 0.08 + Math.max(0, -army.pressure) * 0.6 + army.activity * 0.04
-      }
-      if (so.side[i] === 1) deathP *= 0.55 // heavies take more killing
-
-      if (Math.random() < deathP * dt) {
-        so.st[i] = 2
-        so.timer[i] = 0.35
-        polar(so.r[i], so.a[i], _p)
-        const hy = sampleHeight(_p.x, _p.z) + 0.5
-        for (let k = 0; k < 5; k++) {
-          spawnFire(state, _p.x, hy, _p.z, (Math.random() - 0.5) * 3, 1 + Math.random() * 2,
-            (Math.random() - 0.5) * 3, 0.4 + Math.random() * 0.4, 0.3, FIRE_STOPS[1])
-        }
-        spawnDust(state, _p.x, hy, _p.z, 0, 0.6, 0, 1.2, 0.7, 1, DUSTC)
-      }
-    } else {
+    if (so.st[i] === 2) {
       so.timer[i] -= dt
       if (so.timer[i] <= 0) freeSoldier(state, i)
+      continue
+    }
+
+    const army = state.armies[so.army[i]]
+    const defending = so.army[i] === leaderIdx
+    const x = Math.cos(so.a[i]) * so.r[i]
+    const z = Math.sin(so.a[i]) * so.r[i]
+
+    // -- who am I fighting? --
+    so.foeTimer[i] -= dt
+    let foe = so.foe[i]
+    if (foe >= 0 && (!so.active[foe] || so.st[foe] === 2 || so.army[foe] === so.army[i])) foe = -1
+    if (foe < 0 || so.foeTimer[i] <= 0) {
+      foe = findFoe(state, i, x, z)
+      so.foe[i] = foe
+      so.foeTimer[i] = MELEE.retarget * (0.7 + Math.random() * 0.6)
+    }
+
+    if (foe >= 0) {
+      const fx = Math.cos(so.a[foe]) * so.r[foe]
+      const fz = Math.sin(so.a[foe]) * so.r[foe]
+      const dx = fx - x
+      const dz = fz - z
+      const d = Math.hypot(dx, dz) || 0.0001
+      so.face[i] = Math.atan2(dx, dz)
+
+      if (d > MELEE.strike) {
+        // close on him
+        so.st[i] = 0
+        so.phase[i] += dt * 13
+        const step = (MELEE.chase * dt) / d
+        const nx = x + dx * step
+        const nz = z + dz * step
+        so.r[i] = Math.max(ARENA.hillR - 3, Math.min(ARENA.rim, Math.hypot(nx, nz)))
+        so.a[i] = Math.atan2(nz, nx)
+      } else {
+        // in reach: shoot him, and one of the two goes down
+        so.st[i] = 1
+        so.phase[i] += dt * 6
+        so.timer[i] += dt
+        if (Math.random() < dt * 6) {
+          const my = sampleHeight(x, z) + 0.58
+          const ux = dx / d
+          const uz = dz / d
+          spawnFire(state, x + ux * 0.4, my, z + uz * 0.4, ux * 2, 0.6 + Math.random(), uz * 2, 0.32, 0.08, MUZZLE)
+          spawnFire(state, x + ux * 0.4, my, z + uz * 0.4,
+            ux * 16 + (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 1.2, uz * 16 + (Math.random() - 0.5) * 2,
+            0.16, 0.1 + Math.random() * 0.06, MUZZLE)
+        }
+        // The better the ticker is doing, the more duels its men win. That is
+        // the whole scoreboard, expressed one corpse at a time.
+        const edge = 0.55 + army.advance
+        if (Math.random() < dt * 1.15 * edge) killSoldier(state, foe)
+      }
+    } else {
+      // -- nobody to fight: take up position --
+      const holdR = defending
+        ? ARENA.garrisonR + (i % 5) * 0.9
+        : Math.max(army.front, ARENA.assaultR + (i % 7) * 0.7)
+      const arrived = so.r[i] <= holdR + ARENA.clashBand
+
+      if (!arrived) {
+        so.st[i] = 0
+        so.phase[i] += dt * 12
+        const speed = (so.side[i] === 1 ? 2.5 : 3.3) + (i % 5) * 0.16
+        so.r[i] -= speed * dt
+        so.a[i] += (so.weave[i] * Math.sin(so.phase[i] * 0.5) * dt) / Math.max(6, so.r[i])
+        // lane discipline dissolves as they close on the citadel
+        const grip = Math.max(0, (so.r[i] - ARENA.assaultR) / (ARENA.rim - ARENA.assaultR))
+        if (grip > 0) {
+          let off = so.a[i] - army.angle
+          while (off > Math.PI) off -= Math.PI * 2
+          while (off < -Math.PI) off += Math.PI * 2
+          const slack = ARENA.wedgeHalf * (1 + (1 - grip) * 2.4)
+          if (off > slack) so.a[i] -= (off - slack) * grip * 3 * dt
+          else if (off < -slack) so.a[i] -= (off + slack) * grip * 3 * dt
+        }
+        if (so.r[i] < ARENA.hillR - 3) so.r[i] = ARENA.hillR - 3
+        else if (so.r[i] > ARENA.rim) so.r[i] = ARENA.rim
+        so.face[i] = Math.atan2(-Math.cos(so.a[i]), -Math.sin(so.a[i]))
+      } else {
+        so.st[i] = 1
+        so.phase[i] += dt * 7
+        so.r[i] += (holdR - so.r[i]) * Math.min(1, dt * 1.6)
+        so.a[i] += ((Math.random() - 0.5) * (defending ? 1.1 : 2.0) * dt) / Math.max(6, so.r[i])
+        // the garrison watches outward, the besiegers watch the hill
+        const f = defending ? 1 : -1
+        so.face[i] = Math.atan2(Math.cos(so.a[i]) * f, Math.sin(so.a[i]) * f)
+      }
+
+      // Attrition for the ones not in contact — a losing ticker bleeds even
+      // where nobody has reached it yet.
+      let deathP = defending
+        ? 0.16
+        : 0.06 + (1 - army.advance) * 0.5 + Math.max(0, -army.pressure) * 0.4
+      if (so.side[i] === 1) deathP *= 0.55
+      if (Math.random() < deathP * dt) killSoldier(state, i)
     }
   }
 

@@ -71,9 +71,9 @@ export function createArmies(scene, assets) {
       const dying = s.st[i] === 2
       const bob = s.st[i] === 0 ? Math.abs(Math.sin(s.phase[i] * 2)) * 0.05 : 0
       _o.position.set(x, sampleHeight(x, z) + bob, z)
-      // the garrison faces out at the assault; everyone else faces the hill
-      const f = s.army[i] === leader && s.st[i] === 1 ? 1 : -1
-      _o.rotation.set(0, Math.atan2(ca * f, sa * f), 0)
+      // the simulator decides where a man is looking — usually at whoever he
+      // is trying to kill
+      _o.rotation.set(0, s.face[i], 0)
       _o.scale.setScalar(dying ? 0.9 + s.timer[i] * 0.3 : 1)
       _o.updateMatrix()
 
