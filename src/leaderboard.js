@@ -62,9 +62,19 @@ export function createLeaderboard({ onClose, explorer = 'https://robinhoodchain.
     if (loading) return
     loading = true
     try {
-      const r = await fetch(`${httpBase()}/leaderboard?limit=200`, { signal: AbortSignal.timeout(12_000) })
+      // The rounds are fetched alongside, so an empty leaderboard can say WHY
+      // it is empty. "Nobody has been paid yet" and "every round has failed for
+      // the same reason for an hour" look identical otherwise.
+      const [r, rr] = await Promise.all([
+        fetch(`${httpBase()}/leaderboard?limit=200`, { signal: AbortSignal.timeout(12_000) }),
+        fetch(`${httpBase()}/rounds?limit=25`, { signal: AbortSignal.timeout(12_000) }).catch(() => null),
+      ])
       const data = await r.json()
-      render(data)
+      let rounds = []
+      try {
+        rounds = rr ? (await rr.json()).rows || [] : []
+      } catch {}
+      render(data, rounds)
     } catch (e) {
       rowsEl.innerHTML = `<div class="lead-note">Couldn't reach the backend: ${e.message}</div>`
     } finally {
@@ -72,10 +82,24 @@ export function createLeaderboard({ onClose, explorer = 'https://robinhoodchain.
     }
   }
 
-  function render(data) {
+  /** Why has nothing been paid? The rounds know. */
+  function unpaidNote(rounds) {
+    const unpaid = rounds.filter((r) => r.paid === false)
+    if (!unpaid.length) return ''
+    const reason = unpaid[0].reason || 'unknown'
+    const same = unpaid.filter((r) => r.reason === unpaid[0].reason).length
+    return (
+      `<div class="lead-why"><b>${unpaid.length} round${unpaid.length === 1 ? '' : 's'} ` +
+      `did not pay out.</b> ${same > 1 ? `The last ${same} all failed the same way: ` : 'Most recent: '}` +
+      `<code>${reason}</code></div>`
+    )
+  }
+
+  function render(data, rounds = []) {
     if (!data.ready) {
       totalsEl.innerHTML = ''
       rowsEl.innerHTML =
+        unpaidNote(rounds) +
         '<div class="lead-note">No payout history yet — the database is not connected, ' +
         'or no round has been distributed so far.</div>'
       ftEl.textContent = ''
@@ -88,7 +112,9 @@ export function createLeaderboard({ onClose, explorer = 'https://robinhoodchain.
       `<div><span class="k">Transfers</span><span class="v">${t.payouts.toLocaleString()}</span></div>`
 
     if (!data.rows.length) {
-      rowsEl.innerHTML = '<div class="lead-note">Nobody has been paid yet. Come back after the next bell.</div>'
+      rowsEl.innerHTML =
+        unpaidNote(rounds) +
+        '<div class="lead-note">Nobody has been paid yet. Come back after the next bell.</div>'
       return
     }
     rowsEl.innerHTML = ''

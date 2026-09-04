@@ -469,6 +469,15 @@ html, body {
 }
 .chip b { color: var(--text); }
 .lead-note { padding: 26px 14px; color: var(--dimmer); font-size: 12px; }
+.lead-why {
+  margin: 14px; padding: 12px 14px; font-size: 12px; line-height: 1.6; color: var(--dim);
+  background: rgba(255, 176, 32, 0.06); border-left: 3px solid var(--amber);
+}
+.lead-why b { color: var(--text); }
+.lead-why code {
+  font-family: var(--mono); font-size: 11px; color: var(--down);
+  border: 1px solid var(--line-2); padding: 1px 6px;
+}
 .lead-ft { padding: 10px 14px; border-top: 1px solid var(--line); font-size: 10px; color: var(--dimmer); }
 
 /* ---------- onboarding ---------- */
