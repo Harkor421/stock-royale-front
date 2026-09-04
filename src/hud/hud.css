@@ -282,58 +282,121 @@ html, body {
 .winner-podium div:last-child { border-right: 0; }
 .winner-podium b { font-weight: 700; }
 
-/* ---------- the airdrop ---------- */
+/* ---------- airdrop: the full-screen moment ---------- */
 .drop {
-  position: fixed; inset: 0; z-index: 6; pointer-events: none;
-  display: grid; place-items: center;
-  background: rgba(3, 5, 8, 0.78);
-  opacity: 0; transition: opacity 300ms ease;
+  position: fixed; inset: 0; z-index: 9; display: none; place-items: center;
+  background: rgba(3, 5, 8, 0.88); padding: 18px; pointer-events: auto;
 }
-.drop.show { opacity: 1; }
+.drop.show { display: grid; animation: dropIn 220ms ease-out; }
+@keyframes dropIn { from { opacity: 0 } to { opacity: 1 } }
 .drop-card {
-  pointer-events: auto;
-  width: min(760px, calc(100vw - 40px));
+  width: min(1080px, 100%); max-height: calc(100vh - 36px);
+  display: flex; flex-direction: column;
   background: var(--panel); border: 1px solid var(--line-2);
-  transform: translateY(8px); transition: transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
-  display: flex; flex-direction: column; max-height: min(76vh, 660px);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.7);
 }
-.drop.show .drop-card { transform: none; }
 .drop-hd {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 7px 12px; background: var(--panel-hd); border-bottom: 1px solid var(--line);
-  font-size: 9px; letter-spacing: 0.24em; text-transform: uppercase; color: var(--dim);
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 8px 10px 14px; background: var(--panel-hd); border-bottom: 1px solid var(--line);
+  font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text);
 }
-.drop-tag { padding: 2px 7px; border: 1px solid var(--amber); color: var(--amber); letter-spacing: 0.14em; }
-.drop-tag.demo { background: var(--amber); color: #0a0c10; font-weight: 700; }
-.drop-lede { padding: 16px 16px 12px; display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
-.drop-sym { font-size: 40px; font-weight: 800; letter-spacing: 0.04em; line-height: 1; }
-.drop-to { font-size: 12px; color: var(--dim); letter-spacing: 0.12em; text-transform: uppercase; }
-.drop-buy {
-  padding: 0 16px 12px; font-size: 11px; color: var(--dim);
-  display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+.drop-title { flex: none; }
+.drop-flags { flex: 1; display: flex; gap: 6px; }
+.drop-tag {
+  font-size: 8.5px; letter-spacing: 0.12em; padding: 3px 7px;
+  border: 1px solid var(--line-2); color: var(--dim);
 }
-.drop-buy b { color: var(--text); font-weight: 700; }
-.drop .cols, .drop-row { grid-template-columns: 26px 1fr 62px 108px 22px; gap: 8px; }
-.drop-rows { overflow-y: auto; flex: 1; min-height: 60px; }
+.drop-tag.demo { background: var(--amber); color: #0a0c10; border-color: var(--amber); font-weight: 700; }
+.drop-x {
+  flex: none; cursor: pointer; width: 30px; height: 26px;
+  background: transparent; border: 1px solid var(--line-2); color: var(--dim);
+  font-family: var(--mono); font-size: 12px;
+}
+.drop-x:hover { color: var(--down); border-color: var(--down); }
+
+/* the ticker's badge — a colour and a monogram is all the logo it needs */
+.tchip {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--c); color: #07090c;
+  font-weight: 800; font-size: 9px; letter-spacing: 0.06em;
+  padding: 2px 5px; min-width: 44px; flex: none;
+}
+.tchip.big {
+  font-size: 26px; letter-spacing: 0.04em; min-width: 130px; height: 78px;
+  box-shadow: 0 0 44px -6px var(--c);
+}
+
+.drop-hero { display: flex; align-items: center; gap: 18px; padding: 18px 16px; border-bottom: 1px solid var(--line); }
+.drop-hero-line { display: flex; align-items: baseline; gap: 12px; }
+.drop-hero-line b { font-size: 34px; font-weight: 800; letter-spacing: 0.04em; }
+.drop-hero-line span { font-size: 15px; color: var(--dim); }
+.drop-hero-sub { font-size: 11px; color: var(--dimmer); margin-top: 7px; }
+.drop-hero-sub a { color: var(--dim); }
+
+/* buying -> distributing -> done */
+.drop-stages { display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid var(--line); }
+.stage {
+  display: flex; align-items: center; gap: 9px; padding: 11px 14px;
+  border-right: 1px solid var(--line); font-size: 11px; color: var(--dimmer);
+}
+.stage:last-child { border-right: 0; }
+.stage i {
+  font-style: normal; width: 19px; height: 19px; flex: none;
+  display: grid; place-items: center; font-size: 10px; font-weight: 700;
+  border: 1px solid var(--line-2); color: var(--dimmer);
+}
+.stage span { letter-spacing: 0.1em; text-transform: uppercase; font-size: 9.5px; white-space: nowrap; flex: none; }
+.stage em { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stage em { font-style: normal; color: var(--dim); font-size: 10.5px; }
+.stage em b { color: var(--text); }
+.stage.active { color: var(--amber); }
+.stage.active i { border-color: var(--amber); color: var(--amber); animation: blink 1.1s steps(2, start) infinite; }
+.stage.done { color: var(--up); }
+.stage.done i { border-color: var(--up); color: #07090c; background: var(--up); }
+.stage.fail i { border-color: var(--down); color: var(--down); }
+
+.drop-bar { height: 3px; background: #141b24; }
+.drop-bar i { display: block; height: 100%; width: 0; background: var(--amber); transition: width 220ms linear; }
+
+.drop-console-hd {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 14px; border-bottom: 1px solid var(--line);
+  font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dimmer);
+}
+.drop-count { color: var(--amber); letter-spacing: 0.06em; font-size: 10.5px; }
+
+.drop-rows { flex: 1; min-height: 220px; overflow-y: auto; padding-bottom: 4px; }
 .drop-row {
-  display: grid; align-items: center; padding: 3px 12px; font-size: 10.5px;
+  display: grid; grid-template-columns: 66px 52px 1fr 92px 120px 48px;
+  gap: 10px; align-items: center;
+  padding: 4px 14px; font-size: 11px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-  animation: rowIn 220ms ease-out;
+  animation: rowIn 200ms ease-out;
 }
 .drop-row:nth-child(even) { background: var(--row-alt); }
-.drop-rank { color: var(--dimmer); }
-.drop-addr { color: var(--text); }
-.drop-pct { text-align: right; color: var(--dim); }
+.drop-time { color: var(--dimmer); font-size: 9.5px; }
+.drop-addr a { color: var(--text); text-decoration: none; }
+.drop-addr a:hover { color: var(--amber); text-decoration: underline; }
+.drop-pct { color: var(--dim); text-align: right; font-size: 10px; }
 .drop-amt { text-align: right; font-weight: 700; color: var(--up); }
-.drop-row a, .drop-buy a { color: var(--amber); text-decoration: none; }
-.drop-row a:hover, .drop-buy a:hover { text-decoration: underline; }
+.drop-tx { text-align: right; }
+.drop-tx a { color: var(--dim); text-decoration: none; }
+.drop-tx a:hover { color: var(--amber); }
+.drop-empty { padding: 40px 14px; color: var(--dimmer); font-size: 12px; text-align: center; }
+
 .drop-ft {
-  padding: 8px 12px; border-top: 1px solid var(--line);
-  font-size: 10px; color: var(--dim);
-  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 11px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--dim);
 }
-.drop-ft b { color: var(--text); }
-.drop-empty { padding: 18px 12px; color: var(--dimmer); font-size: 11px; text-align: center; }
+.drop-total { display: flex; align-items: center; gap: 8px; }
+.drop-total b { color: var(--text); }
+.drop-usd { color: var(--up); }
+.drop-lead {
+  cursor: pointer; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; padding: 7px 14px; flex: none;
+  background: transparent; border: 1px solid var(--amber); color: var(--amber);
+}
+.drop-lead:hover { background: var(--amber); color: #07090c; }
 
 /* ---------- leaderboard (/leaderboard) ---------- */
 .lead {
@@ -430,6 +493,18 @@ html, body {
 @media (max-width: 1020px) { .cell[data-p="3"] { display: none; } }
 @media (max-width: 780px) {
   :root { --row-h: 23px; }
+  /* the airdrop modal keeps its console; the columns that only add width go */
+  .drop { padding: 8px; }
+  .drop-hero { padding: 12px 10px; gap: 11px; }
+  .tchip.big { font-size: 17px; min-width: 82px; height: 54px; }
+  .drop-hero-line b { font-size: 22px; }
+  .drop-hero-line span { font-size: 12px; }
+  .drop-stages { grid-template-columns: 1fr; }
+  .stage { border-right: 0; border-bottom: 1px solid var(--line); padding: 8px 10px; }
+  .drop-row { grid-template-columns: 46px 1fr 84px 40px; gap: 7px; padding: 4px 9px; }
+  .drop-row .tchip, .drop-pct { display: none; }
+  .drop-ft { flex-direction: column; align-items: stretch; gap: 8px; }
+  .drop-lead { width: 100%; }
   #hud { grid-template-columns: 1fr; padding: 7px; gap: 6px; font-size: 10px; }
   /* the bar keeps only what a phone can hold: mark, countdown, link, warning */
   .bar { height: 34px; }

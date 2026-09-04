@@ -136,66 +136,123 @@ export function createHud(root) {
   const wPodium = winner.querySelector('.winner-podium')
 
   // ------------------------------------------------------------- airdrop
-  // The prize, in the middle of the screen: who received the winning stock,
-  // how much, and a link to each transfer on Robinhood Chain's explorer.
+  // The prize, full screen: the stock being bought, then every transfer landing
+  // one by one in a live console, each line badged with the ticker's colours.
+  // This is the moment the whole game exists for, so it gets the whole screen.
   const drop = el('div', 'drop')
   drop.innerHTML = `
     <div class="drop-card">
       <div class="drop-hd">
         <span class="drop-title">Airdrop</span>
         <span class="drop-flags"></span>
+        <button class="drop-x" title="Close">✕</button>
       </div>
-      <div class="drop-lede"><span class="drop-sym">—</span><span class="drop-to"></span></div>
-      <div class="drop-buy"></div>
-      <div class="cols">
-        <span>#</span><span>Holder</span><span class="r">Held</span><span class="r">Received</span><span></span>
+
+      <div class="drop-hero">
+        <span class="tchip big"></span>
+        <div class="drop-hero-txt">
+          <div class="drop-hero-line"><b class="drop-sym">—</b><span class="drop-to"></span></div>
+          <div class="drop-hero-sub drop-chain"></div>
+        </div>
+      </div>
+
+      <div class="drop-stages">
+        <div class="stage" data-s="buy"><i>1</i><span>Buying</span><em></em></div>
+        <div class="stage" data-s="send"><i>2</i><span>Distributing</span><em></em></div>
+        <div class="stage" data-s="done"><i>3</i><span>Done</span><em></em></div>
+      </div>
+      <div class="drop-bar"><i></i></div>
+
+      <div class="drop-console-hd">
+        <span>Live transfers</span><span class="drop-count"></span>
       </div>
       <div class="drop-rows"><div class="drop-empty">Waiting for the chain…</div></div>
-      <div class="drop-ft"><span class="drop-total">—</span><span class="drop-chain"></span></div>
+
+      <div class="drop-ft">
+        <span class="drop-total">—</span>
+        <button class="drop-lead">See who has been paid →</button>
+      </div>
     </div>`
   document.body.append(drop)
   const dTitle = drop.querySelector('.drop-title')
   const dFlags = drop.querySelector('.drop-flags')
+  const dHeroChip = drop.querySelector('.tchip.big')
   const dSym = drop.querySelector('.drop-sym')
   const dTo = drop.querySelector('.drop-to')
-  const dBuy = drop.querySelector('.drop-buy')
   const dRows = drop.querySelector('.drop-rows')
   const dTotal = drop.querySelector('.drop-total')
   const dChain = drop.querySelector('.drop-chain')
+  const dCount = drop.querySelector('.drop-count')
+  const dBar = drop.querySelector('.drop-bar i')
+  const dStage = (k) => drop.querySelector(`.stage[data-s="${k}"]`)
 
   let dropTimer = null
   let dropRows = 0
+  let dropExpected = 0
+  let dropTicker = '—'
+  let dropColor = 'var(--amber)'
+  const closeDrop = () => {
+    clearTimeout(dropTimer)
+    drop.classList.remove('show')
+  }
+  drop.querySelector('.drop-x').addEventListener('click', closeDrop)
+  drop.addEventListener('click', (ev) => {
+    if (ev.target === drop) closeDrop()
+  })
+
   const shortAddr = (a) => (a && a.length > 14 ? a.slice(0, 8) + '…' + a.slice(-6) : a || '—')
   const txLink = (url, label) =>
     url && !url.includes('0xSIM')
       ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>`
       : `<span style="color:var(--dimmer)">${label}</span>`
+  /** The ticker's badge — a colour and a monogram is all the logo it needs. */
+  const chip = (sym, color) => `<span class="tchip" style="--c:${color}">${sym}</span>`
 
-  function airdropStart(e, state) {
+  function setStage(k, state, detail) {
+    const node = dStage(k)
+    if (!node) return
+    node.className = 'stage ' + state
+    if (detail != null) node.querySelector('em').innerHTML = detail
+  }
+
+  function airdropStart(e, st) {
     clearTimeout(dropTimer)
     hideWinner()
     dropRows = 0
-    const col = state.bySymbol.get(e.ticker)?.colorCss || 'var(--amber)'
+    dropExpected = e.holders || 0
+    dropTicker = e.ticker
+    dropColor = st.bySymbol.get(e.ticker)?.colorCss || 'var(--amber)'
+
     dTitle.textContent = `Airdrop · round ${e.round?.label ?? ''} ET`
     dFlags.innerHTML =
+      (e.simulated ? '<span class="drop-tag demo">Simulation — nothing sent</span> ' : '') +
       (e.demo ? '<span class="drop-tag demo">Demo data</span> ' : '') +
       (e.dryRun ? '<span class="drop-tag">Dry run — no funds moved</span>' : '')
+
+    dHeroChip.textContent = e.ticker
+    dHeroChip.style.setProperty('--c', dropColor)
     dSym.textContent = e.ticker
-    dSym.style.color = col
-    dTo.textContent = `→ ${e.holders.toLocaleString()} holders`
-    dBuy.innerHTML = '<span>Buying on Robinhood Chain…</span>'
+    dSym.style.color = dropColor
+    dTo.textContent = `→ ${(e.holders || 0).toLocaleString()} holders`
+    dChain.innerHTML = e.token
+      ? `holders of ${txLink(`${e.explorer}/token/${e.token}`, shortAddr(e.token))} · paid pro-rata by how much of the supply each wallet holds`
+      : 'paid pro-rata by how much of the supply each wallet holds'
+
+    setStage('buy', 'active', 'on Robinhood Chain…')
+    setStage('send', '', '')
+    setStage('done', '', '')
+    dBar.style.width = '0%'
+    dCount.textContent = ''
     dRows.innerHTML = '<div class="drop-empty">Waiting for the chain…</div>'
     dTotal.textContent = '—'
-    dChain.innerHTML = e.token
-      ? `holders of ${txLink(`${e.explorer}/token/${e.token}`, shortAddr(e.token))}`
-      : ''
     drop.classList.add('show')
   }
 
   function airdropBuy(e) {
-    dBuy.innerHTML =
-      `<span>Bought <b>${e.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${e.ticker}</b> ` +
-      `for <b>${e.eth} ETH</b></span>${txLink(e.txUrl, '↗ swap')}`
+    setStage('buy', 'done',
+      `bought <b>${e.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${e.ticker}</b> ` +
+      `for <b>${e.eth} ETH</b> ${txLink(e.txUrl, '↗')}`)
+    setStage('send', 'active', '')
   }
 
   function airdropPayment(e) {
@@ -203,31 +260,41 @@ export function createHud(root) {
     dropRows++
     const row = el('div', 'drop-row')
     row.innerHTML =
-      `<span class="drop-rank">${e.rank}</span>` +
-      `<span class="drop-addr">${shortAddr(e.to)}</span>` +
-      `<span class="drop-pct">${e.pct.toFixed(2)}%</span>` +
+      `<span class="drop-time">${ET_TIME.format(new Date())}</span>` +
+      chip(e.ticker || dropTicker, dropColor) +
+      `<span class="drop-addr">${txLink(e.addrUrl, shortAddr(e.to))}</span>` +
+      `<span class="drop-pct">${e.pct.toFixed(2)}% held</span>` +
       `<span class="drop-amt">${e.amount.toLocaleString(undefined, { maximumFractionDigits: 6 })}</span>` +
-      `<span>${txLink(e.txUrl, '↗')}</span>`
+      `<span class="drop-tx">${txLink(e.txUrl, '↗ tx')}</span>`
     dRows.append(row)
+    dCount.textContent = dropExpected ? `${dropRows} / ${dropExpected} sent` : `${dropRows} sent`
+    if (dropExpected) dBar.style.width = Math.min(100, (dropRows / dropExpected) * 100) + '%'
     // follow the stream unless the viewer has scrolled up to read
-    if (dRows.scrollTop + dRows.clientHeight > dRows.scrollHeight - 60) {
+    if (dRows.scrollTop + dRows.clientHeight > dRows.scrollHeight - 80) {
       dRows.scrollTop = dRows.scrollHeight
     }
   }
 
   function airdropResult(e) {
+    setStage('send', 'done', '')
+    setStage('done', 'done',
+      `<b>${e.count.toLocaleString()}</b> wallets paid`)
+    dBar.style.width = '100%'
     dTotal.innerHTML =
-      `<b>${e.totalSent.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${e.ticker}</b> ` +
-      `sent to <b>${e.count.toLocaleString()}</b> holders`
+      chip(e.ticker, dropColor) +
+      ` <b>${e.totalSent.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${e.ticker}</b> ` +
+      `to <b>${e.count.toLocaleString()}</b> holders` +
+      (e.totalUsd ? ` · <span class="drop-usd">${fmtUsd(e.totalUsd)}</span>` : '')
     if (!dropRows) dRows.innerHTML = '<div class="drop-empty">Nobody was eligible this round.</div>'
     clearTimeout(dropTimer)
-    dropTimer = setTimeout(() => drop.classList.remove('show'), 26_000)
+    // long enough to actually read; the ✕ closes it sooner
+    dropTimer = setTimeout(closeDrop, 60_000)
   }
 
   function airdropError(e) {
-    dBuy.innerHTML = `<span style="color:var(--down)">Airdrop failed: ${e.message}</span>`
+    setStage('buy', 'fail', `<span style="color:var(--down)">${e.message}</span>`)
     clearTimeout(dropTimer)
-    dropTimer = setTimeout(() => drop.classList.remove('show'), 12_000)
+    dropTimer = setTimeout(closeDrop, 20_000)
   }
 
   // ---------------------------------------------------------- how it works
@@ -545,7 +612,13 @@ export function createHud(root) {
 
   // ------------------------------------------------------------------ misc
   const onSoundToggle = (fn) => soundBtn.addEventListener('click', fn)
-  const onLeaderboard = (fn) => leadBtn.addEventListener('click', fn)
+  const onLeaderboard = (fn) => {
+    leadBtn.addEventListener('click', fn)
+    drop.querySelector('.drop-lead').addEventListener('click', () => {
+      closeDrop()
+      fn()
+    })
+  }
   const setSoundIcon = (muted) => {
     soundBtn.textContent = muted ? '×' : '♪'
     soundBtn.style.color = muted ? '' : 'var(--amber)'
