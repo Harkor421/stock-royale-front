@@ -138,6 +138,7 @@ export function createState() {
       serverSkewMs: 0, //    serverNow - clientNow, so the countdown is honest
       connected: false,
       sim: false, //         the backend is running a SYNTHETIC tape, not the market
+      pot: null, //          what the distributor wallet holds, and what the next drop is worth
 
       history: [], //        past winners, newest first
 

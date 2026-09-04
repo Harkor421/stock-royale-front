@@ -509,11 +509,16 @@ export function applyEvent(state, e) {
       s.history = e.history || []
       s.serverSkewMs = (e.serverNow || e.ts || Date.now()) - Date.now()
       s.sim = !!e.sim
+      if (e.pot) s.pot = e.pot
       if (e.rows) e.rows.forEach((r) => applyRow(state, r))
       break
     }
     case 'session': {
       s.session = e
+      break
+    }
+    case 'pot': {
+      s.pot = e
       break
     }
     case 'roundStart': {

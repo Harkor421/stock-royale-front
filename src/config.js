@@ -228,6 +228,18 @@ export function fmtUsd(v) {
   if (v >= 1e3) return '$' + (v / 1e3).toFixed(1) + 'K'
   return '$' + v.toFixed(0)
 }
+/**
+ * The pot, written out. fmtUsd abbreviates — fine for a trade tape, wrong for
+ * the number people are watching to decide whether to hold the coin: "$1.3K"
+ * hides seven hundred dollars of movement. Exact to the cent until the figures
+ * stop fitting on screen.
+ */
+export function fmtUsdExact(v) {
+  if (!(v > 0)) return '$0'
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(2) + 'M'
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export function fmtPrice(v) {
   if (!(v > 0)) return '—'
   return '$' + v.toFixed(2)
