@@ -331,6 +331,17 @@ export function createHud(root) {
     // A stock with no liquidity pool is not a failure mid-flight — nothing was
     // ever spent — so it gets its own wording instead of a red error on a
     // half-finished buy.
+    // No coin configured yet is not a failure — it is the state before launch.
+    if (e.noToken) {
+      if (!drop.classList.contains('show')) return
+      setStage('buy', 'fail', '<span style="color:var(--dim)">no coin configured yet</span>')
+      dRows.innerHTML =
+        '<div class="drop-empty">The airdrop starts as soon as the coin is set.<br>' +
+        'Rounds keep running and the winner is still decided.</div>'
+      clearTimeout(dropTimer)
+      dropTimer = setTimeout(closeDrop, 15_000)
+      return
+    }
     if (e.noPool) {
       if (!drop.classList.contains('show')) {
         dTitle.textContent = `Airdrop · round ${e.round?.label ?? ''} ET`
@@ -562,7 +573,10 @@ export function createHud(root) {
       potV.textContent = pot.usd != null ? fmtUsdExact(pot.usd) : `${pot.eth.toFixed(4)} ETH`
       const drop = pot.nextDropUsd != null ? fmtUsdExact(pot.nextDropUsd) : `${pot.nextDropEth.toFixed(4)} ETH`
       potSub.innerHTML =
-        `next drop <b>${drop}</b> of stock · ${pot.eth.toFixed(4)} ETH in the wallet` +
+        (pot.awaitingToken
+          ? '<b>waiting for the coin</b> · '
+          : `next drop <b>${drop}</b> of stock · `) +
+        `${pot.eth.toFixed(4)} ETH in the wallet` +
         (pot.dryRun ? ' <span class="pot-dry">dry run</span>' : '')
     } else {
       potBox.classList.add('idle')
