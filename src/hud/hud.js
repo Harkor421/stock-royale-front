@@ -38,7 +38,7 @@ export function createHud(root) {
   // cells just drop by priority (data-p) and the bar stays one line.
   const top = el('div', 'panel bar')
   top.innerHTML = `
-    <div class="cell brand"><b class="full">Stock<i>·</i>Royale</b><b class="short">S<i>·</i>R</b></div>
+    <div class="cell brand"><img class="brand-logo" src="/icon-48.png" alt="" /><b class="full">Stock<i>·</i>Royale</b><b class="short">S<i>·</i>R</b></div>
     <div class="cell kv" data-p="4"><span class="k">Format</span><span class="v dim">8 tickers · 5-min rounds</span></div>
     <div class="cell kv" data-p="2"><span class="k">Session</span><span class="v sess">CONNECTING…</span></div>
     <div class="cell kv round">

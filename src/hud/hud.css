@@ -106,7 +106,8 @@ html, body {
 }
 .cell:last-child { border-right: 0; }
 
-.cell.brand { justify-content: center; }
+.cell.brand { flex-direction: row; align-items: center; gap: 9px; }
+.brand-logo { height: 22px; width: auto; display: block; flex: none; }
 .cell.brand .short { display: none; }
 .cell.brand b {
   font-size: 14px; font-weight: 800; letter-spacing: 0.24em; text-transform: uppercase; color: var(--text);
@@ -496,6 +497,7 @@ html, body {
   display: flex; align-items: center; gap: 12px;
   padding: 10px 8px 10px 16px; background: var(--panel-hd); border-bottom: 1px solid var(--line);
 }
+.onb-logo { height: 26px; width: auto; display: block; flex: none; }
 .onb-brand {
   font-size: 12px; font-weight: 800; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text);
 }
@@ -597,6 +599,7 @@ html, body {
   .cell.brand .full { display: none; }
   .cell.brand .short { display: block; }
   .cell.brand b { font-size: 12px; letter-spacing: 0.12em; }
+  .brand-logo { height: 17px; }
   .cell[data-p="2"] { display: none; }
   .cell.round { min-width: 96px; }
   .cell.round .clock-num { font-size: 14px; }

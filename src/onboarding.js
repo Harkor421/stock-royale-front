@@ -84,6 +84,7 @@ export function createOnboarding({ getSymbol } = {}) {
   root.innerHTML = `
     <div class="onb-card">
       <div class="onb-hd">
+        <img class="onb-logo" src="/icon-48.png" alt="" />
         <span class="onb-brand">Stock<i>·</i>Royale</span>
         <span class="onb-tag"></span>
         <button class="onb-skip">Skip</button>
